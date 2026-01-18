@@ -4,6 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { StatCard } from "@/components/ui/stat-card";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Package,
   ClipboardList,
@@ -13,7 +16,13 @@ import {
   AlertCircle,
   ArrowRight,
   TrendingUp,
+  Activity,
+  CheckCircle,
+  XCircle,
+  Sparkles,
 } from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface AdminStats {
   totalResources: number;
@@ -124,128 +133,115 @@ export function AdminDashboard() {
     fetchStats();
   }, []);
 
-  const statCards = [
-    {
-      title: "Recursos",
-      value: `${stats.availableResources}/${stats.totalResources}`,
-      description: "Disponibles / Total",
-      icon: Package,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
-      action: () => navigate("/admin/resources"),
-    },
-    {
-      title: "Préstamos Pendientes",
-      value: stats.pendingLoans.toString(),
-      description: `${stats.activeLoans} activos`,
-      icon: ClipboardList,
-      color: stats.pendingLoans > 0 ? "text-warning" : "text-success",
-      bgColor: stats.pendingLoans > 0 ? "bg-warning/10" : "bg-success/10",
-      action: () => navigate("/admin/loans"),
-      badge: stats.pendingLoans > 0,
-    },
-    {
-      title: "Eventos Próximos",
-      value: stats.upcomingEvents.toString(),
-      description: "Eventos activos",
-      icon: Calendar,
-      color: "text-accent",
-      bgColor: "bg-accent/10",
-      action: () => navigate("/admin/events"),
-    },
-    {
-      title: "Estudiantes",
-      value: stats.totalStudents.toString(),
-      description: "Registrados",
-      icon: Users,
-      color: "text-muted-foreground",
-      bgColor: "bg-muted",
-      action: () => navigate("/admin/users"),
-    },
-  ];
-
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-8 page-enter">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Panel de Administración</h1>
-          <p className="text-muted-foreground">
-            Gestiona recursos, préstamos y eventos de bienestar
-          </p>
+      <PageHeader
+        title="Panel de Administración"
+        description="Gestiona recursos, préstamos y eventos de bienestar"
+      >
+        <div className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary/10 to-accent/10 px-4 py-2 border border-primary/20">
+          <Sparkles className="h-4 w-4 text-accent" />
+          <span className="text-sm font-semibold">
+            {stats.totalHoursAwarded.toFixed(1)} horas otorgadas
+          </span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2">
-            <TrendingUp className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">
-              {stats.totalHoursAwarded.toFixed(1)} horas otorgadas
-            </span>
-          </div>
-        </div>
-      </div>
+      </PageHeader>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat) => (
-          <Card
-            key={stat.title}
-            className="cursor-pointer transition-all hover:shadow-md hover:-translate-y-1 relative"
-            onClick={stat.action}
-          >
-            {stat.badge && (
-              <Badge className="absolute -top-2 -right-2 bg-warning text-warning-foreground">
-                Nuevo
-              </Badge>
-            )}
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <div className={`rounded-lg p-2 ${stat.bgColor}`}>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{isLoading ? "..." : stat.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Recursos"
+          value={`${stats.availableResources}/${stats.totalResources}`}
+          description="Disponibles / Total"
+          icon={Package}
+          variant="primary"
+          onClick={() => navigate("/admin/resources")}
+          isLoading={isLoading}
+        />
+        <StatCard
+          title="Préstamos Pendientes"
+          value={stats.pendingLoans.toString()}
+          description={`${stats.activeLoans} activos`}
+          icon={ClipboardList}
+          variant={stats.pendingLoans > 0 ? "warning" : "success"}
+          onClick={() => navigate("/admin/loans")}
+          isLoading={isLoading}
+          badge={stats.pendingLoans > 0 ? (
+            <Badge className="bg-warning text-warning-foreground animate-pulse-soft">
+              Pendientes
+            </Badge>
+          ) : undefined}
+        />
+        <StatCard
+          title="Eventos Próximos"
+          value={stats.upcomingEvents.toString()}
+          description="Eventos activos"
+          icon={Calendar}
+          variant="accent"
+          onClick={() => navigate("/admin/events")}
+          isLoading={isLoading}
+        />
+        <StatCard
+          title="Estudiantes"
+          value={stats.totalStudents.toString()}
+          description="Registrados"
+          icon={Users}
+          variant="info"
+          onClick={() => navigate("/admin/users")}
+          isLoading={isLoading}
+        />
       </div>
 
-      {/* Pending Loans & Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+      {/* Main Content Grid */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Pending Loans */}
+        <Card className="overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-warning/5 to-transparent">
             <div>
-              <CardTitle className="text-lg">Solicitudes Pendientes</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ClipboardList className="h-5 w-5 text-warning" />
+                Solicitudes Pendientes
+              </CardTitle>
               <CardDescription>Préstamos que requieren aprobación</CardDescription>
             </div>
             {stats.pendingLoans > 0 && (
-              <AlertCircle className="h-5 w-5 text-warning" />
+              <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30">
+                {stats.pendingLoans} pendiente{stats.pendingLoans > 1 ? "s" : ""}
+              </Badge>
             )}
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             {pendingLoans.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No hay solicitudes pendientes
-              </p>
+              <EmptyState
+                icon={CheckCircle}
+                title="Sin solicitudes pendientes"
+                description="Todas las solicitudes han sido procesadas"
+              />
             ) : (
               <div className="space-y-3">
-                {pendingLoans.map((loan) => (
+                {pendingLoans.map((loan, index) => (
                   <div
                     key={loan.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                    className="flex items-center justify-between p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors animate-fade-in"
+                    style={{ animationDelay: `${index * 50}ms` }}
                   >
-                    <div>
-                      <p className="font-medium text-sm">{loan.resources?.name}</p>
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-warning/10">
+                        <Package className="h-5 w-5 text-warning" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{loan.resources?.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {loan.profiles?.full_name}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
                       <p className="text-xs text-muted-foreground">
-                        {loan.profiles?.full_name}
+                        {format(new Date(loan.requested_at), "d MMM", { locale: es })}
                       </p>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(loan.requested_at).toLocaleDateString("es")}
-                    </p>
                   </div>
                 ))}
                 <Button
@@ -261,47 +257,131 @@ export function AdminDashboard() {
           </CardContent>
         </Card>
 
+        {/* Quick Actions */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Acciones Rápidas</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Activity className="h-5 w-5 text-primary" />
+              Acciones Rápidas
+            </CardTitle>
             <CardDescription>Gestión del sistema</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-3">
             <Button
               variant="outline"
-              className="w-full justify-between"
+              className="w-full h-14 justify-between hover-lift"
               onClick={() => navigate("/admin/resources")}
             >
-              Gestionar recursos
-              <ArrowRight className="h-4 w-4" />
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                  <Package className="h-4 w-4 text-primary" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium">Gestionar recursos</p>
+                  <p className="text-xs text-muted-foreground">Agregar, editar, eliminar</p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
             </Button>
             <Button
               variant="outline"
-              className="w-full justify-between"
+              className="w-full h-14 justify-between hover-lift"
               onClick={() => navigate("/admin/events")}
             >
-              Crear nuevo evento
-              <ArrowRight className="h-4 w-4" />
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/20">
+                  <Calendar className="h-4 w-4 text-accent-foreground" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium">Crear nuevo evento</p>
+                  <p className="text-xs text-muted-foreground">Programar actividades</p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
             </Button>
             <Button
               variant="outline"
-              className="w-full justify-between"
+              className="w-full h-14 justify-between hover-lift"
               onClick={() => navigate("/admin/reports")}
             >
-              Ver reportes
-              <ArrowRight className="h-4 w-4" />
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-success/10">
+                  <TrendingUp className="h-4 w-4 text-success" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium">Ver reportes</p>
+                  <p className="text-xs text-muted-foreground">Estadísticas y exportar</p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
             </Button>
             <Button
               variant="outline"
-              className="w-full justify-between"
+              className="w-full h-14 justify-between hover-lift"
               onClick={() => navigate("/admin/users")}
             >
-              Gestionar usuarios
-              <ArrowRight className="h-4 w-4" />
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-info/10">
+                  <Users className="h-4 w-4 text-info" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium">Gestionar usuarios</p>
+                  <p className="text-xs text-muted-foreground">Roles y permisos</p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
             </Button>
           </CardContent>
         </Card>
       </div>
+
+      {/* System Overview */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Resumen del Sistema</CardTitle>
+          <CardDescription>Estado general de la plataforma</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="flex items-center gap-4 p-4 rounded-xl bg-success/5 border border-success/20">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-success/10">
+                <CheckCircle className="h-6 w-6 text-success" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.availableResources}</p>
+                <p className="text-sm text-muted-foreground">Recursos disponibles</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 p-4 rounded-xl bg-warning/5 border border-warning/20">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-warning/10">
+                <Clock className="h-6 w-6 text-warning" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.activeLoans}</p>
+                <p className="text-sm text-muted-foreground">Préstamos activos</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 p-4 rounded-xl bg-primary/5 border border-primary/20">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+                <Calendar className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.upcomingEvents}</p>
+                <p className="text-sm text-muted-foreground">Eventos próximos</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 p-4 rounded-xl bg-accent/10 border border-accent/30">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/20">
+                <Sparkles className="h-6 w-6 text-accent-foreground" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.totalHoursAwarded.toFixed(0)}</p>
+                <p className="text-sm text-muted-foreground">Horas otorgadas</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

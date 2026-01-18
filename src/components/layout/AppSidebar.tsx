@@ -13,6 +13,8 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   LayoutDashboard,
   Package,
@@ -24,7 +26,10 @@ import {
   Settings,
   LogOut,
   GraduationCap,
+  ChevronRight,
+  Sparkles,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const studentMenuItems = [
   { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
@@ -56,65 +61,108 @@ export function AppSidebar() {
     navigate("/auth");
   };
 
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   return (
-    <Sidebar>
-      <SidebarHeader className="border-b border-sidebar-border p-4">
+    <Sidebar className="border-r-0">
+      <SidebarHeader className="p-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sidebar-primary">
-            <GraduationCap className="h-5 w-5 text-sidebar-primary-foreground" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sidebar-primary shadow-glow-accent">
+            <GraduationCap className="h-6 w-6 text-sidebar-primary-foreground" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold text-sidebar-foreground">
+            <span className="text-base font-bold text-sidebar-foreground tracking-tight">
               Bienestar
             </span>
-            <span className="text-xs text-sidebar-foreground/70">
+            <span className="text-xs text-sidebar-foreground/60 font-medium">
               Universitario
             </span>
           </div>
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="px-3">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-sidebar-foreground/60">
-            {isAdmin ? "Administración" : "Navegación"}
+          <SidebarGroupLabel className="px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/40 mb-2">
+            {isAdmin ? "Administración" : "Menú Principal"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.path}>
-                  <SidebarMenuButton
-                    onClick={() => navigate(item.path)}
-                    isActive={location.pathname === item.path}
-                    className="w-full"
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+            <SidebarMenu className="space-y-1">
+              {menuItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <SidebarMenuItem key={item.path}>
+                    <SidebarMenuButton
+                      onClick={() => navigate(item.path)}
+                      className={cn(
+                        "w-full h-11 rounded-lg transition-all duration-200",
+                        "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                        isActive && "bg-sidebar-primary text-sidebar-primary-foreground shadow-md"
+                      )}
+                    >
+                      <item.icon className={cn(
+                        "h-5 w-5 transition-colors",
+                        isActive ? "text-sidebar-primary-foreground" : "text-sidebar-foreground/70"
+                      )} />
+                      <span className="font-medium">{item.title}</span>
+                      {isActive && (
+                        <ChevronRight className="ml-auto h-4 w-4 opacity-70" />
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-4">
-        <div className="mb-3">
-          <p className="text-sm font-medium text-sidebar-foreground truncate">
-            {profile?.full_name || "Usuario"}
-          </p>
-          <p className="text-xs text-sidebar-foreground/60 truncate">
-            {profile?.email}
-          </p>
-          <span className="inline-flex items-center rounded-full bg-sidebar-accent px-2 py-0.5 text-xs font-medium text-sidebar-accent-foreground mt-1">
-            {isAdmin ? "Administrador" : "Estudiante"}
-          </span>
+      <SidebarFooter className="p-4 border-t border-sidebar-border/50">
+        {/* User Card */}
+        <div className="rounded-xl bg-sidebar-accent/50 p-3 mb-3">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-10 w-10 border-2 border-sidebar-primary/30">
+              <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground font-semibold text-sm">
+                {getInitials(profile?.full_name || "U")}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-sidebar-foreground truncate">
+                {profile?.full_name || "Usuario"}
+              </p>
+              <p className="text-xs text-sidebar-foreground/50 truncate">
+                {profile?.email}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <Badge 
+              variant="outline" 
+              className={cn(
+                "text-xs font-medium border-0",
+                isAdmin 
+                  ? "bg-accent/20 text-accent" 
+                  : "bg-sidebar-primary/20 text-sidebar-primary"
+              )}
+            >
+              <Sparkles className="h-3 w-3 mr-1" />
+              {isAdmin ? "Administrador" : "Estudiante"}
+            </Badge>
+          </div>
         </div>
+
         <Button
           variant="ghost"
           size="sm"
           onClick={handleSignOut}
-          className="w-full justify-start text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+          className="w-full justify-start h-10 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-destructive/10 transition-colors"
         >
           <LogOut className="mr-2 h-4 w-4" />
           Cerrar Sesión
