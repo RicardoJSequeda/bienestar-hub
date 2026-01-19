@@ -3,11 +3,13 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
+import { MobileBottomNav } from "./MobileBottomNav";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { FullPageLoading } from "@/components/ui/loading-spinner";
-import { Bell, Search } from "lucide-react";
+import { Bell, Search, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -16,14 +18,14 @@ interface DashboardLayoutProps {
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
-  "/resources": "Catálogo de Recursos",
+  "/resources": "Recursos",
   "/my-loans": "Mis Préstamos",
   "/events": "Eventos",
-  "/my-hours": "Mis Horas de Bienestar",
-  "/admin/resources": "Gestión de Recursos",
-  "/admin/loans": "Gestión de Préstamos",
-  "/admin/events": "Gestión de Eventos",
-  "/admin/users": "Gestión de Usuarios",
+  "/my-hours": "Mis Horas",
+  "/admin/resources": "Recursos",
+  "/admin/loans": "Préstamos",
+  "/admin/events": "Eventos",
+  "/admin/users": "Usuarios",
   "/admin/reports": "Reportes",
   "/admin/settings": "Configuración",
 };
@@ -31,6 +33,7 @@ const pageTitles: Record<string, string> = {
 export function DashboardLayout({ children, requireAdmin = false }: DashboardLayoutProps) {
   const { user, isAdmin, isLoading, profile } = useAuth();
   const location = useLocation();
+  const isMobile = useIsMobile();
 
   if (isLoading) {
     return <FullPageLoading />;
@@ -45,7 +48,52 @@ export function DashboardLayout({ children, requireAdmin = false }: DashboardLay
   }
 
   const currentTitle = pageTitles[location.pathname] || "Dashboard";
+  const showBackButton = location.pathname !== "/dashboard";
 
+  // Mobile Layout
+  if (isMobile) {
+    return (
+      <div className="flex flex-col min-h-screen bg-background">
+        {/* Mobile Header */}
+        <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 safe-area-inset-top">
+          {showBackButton && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 -ml-1"
+              onClick={() => window.history.back()}
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+          )}
+          
+          <h1 className="flex-1 text-lg font-semibold truncate">{currentTitle}</h1>
+
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-9 w-9 relative">
+              <Bell className="h-5 w-5" />
+              <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground flex items-center justify-center">
+                3
+              </span>
+            </Button>
+            <ThemeToggle />
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-auto pb-20 scroll-smooth-touch overscroll-behavior-contain">
+          <div className="p-4 animate-fade-in">
+            {children}
+          </div>
+        </main>
+
+        {/* Bottom Navigation */}
+        <MobileBottomNav />
+      </div>
+    );
+  }
+
+  // Desktop Layout
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">
@@ -57,11 +105,11 @@ export function DashboardLayout({ children, requireAdmin = false }: DashboardLay
             
             {/* Page Title */}
             <div className="flex-1">
-              <h2 className="text-lg font-semibold hidden md:block">{currentTitle}</h2>
+              <h2 className="text-lg font-semibold">{currentTitle}</h2>
             </div>
 
             {/* Search Bar - Desktop */}
-            <div className="hidden md:flex relative max-w-sm flex-1">
+            <div className="hidden lg:flex relative max-w-sm flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar..."

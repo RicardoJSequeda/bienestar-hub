@@ -8,13 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
-import { Search, Clock, CheckCircle, XCircle, Package, Loader2, ArrowRightLeft } from "lucide-react";
+import { Search, Clock, CheckCircle, XCircle, Package, Loader2, ArrowRightLeft, Filter } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface Loan {
   id: string;
@@ -41,13 +40,15 @@ interface Loan {
 }
 
 const statusConfig = {
-  pending: { label: "Pendiente", variant: "secondary" as const, icon: Clock },
-  approved: { label: "Aprobado", variant: "default" as const, icon: CheckCircle },
-  rejected: { label: "Rechazado", variant: "destructive" as const, icon: XCircle },
-  active: { label: "Activo", variant: "default" as const, icon: Package },
-  returned: { label: "Devuelto", variant: "outline" as const, icon: CheckCircle },
-  overdue: { label: "Vencido", variant: "destructive" as const, icon: XCircle },
+  pending: { label: "Pendiente", variant: "secondary" as const, icon: Clock, color: "text-yellow-600 dark:text-yellow-400" },
+  approved: { label: "Aprobado", variant: "default" as const, icon: CheckCircle, color: "text-blue-600 dark:text-blue-400" },
+  rejected: { label: "Rechazado", variant: "destructive" as const, icon: XCircle, color: "text-red-600 dark:text-red-400" },
+  active: { label: "Activo", variant: "default" as const, icon: Package, color: "text-green-600 dark:text-green-400" },
+  returned: { label: "Devuelto", variant: "outline" as const, icon: CheckCircle, color: "text-muted-foreground" },
+  overdue: { label: "Vencido", variant: "destructive" as const, icon: XCircle, color: "text-red-600 dark:text-red-400" },
 };
+
+type TabType = "pending" | "approved" | "active" | "history";
 
 export default function AdminLoans() {
   const { user } = useAuth();
@@ -59,6 +60,7 @@ export default function AdminLoans() {
   const [adminNotes, setAdminNotes] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>("pending");
 
   useEffect(() => {
     fetchLoans();
@@ -135,7 +137,6 @@ export default function AdminLoans() {
       return;
     }
 
-    // Update resource status
     if (shouldUpdateResource) {
       await supabase
         .from("resources")
@@ -143,7 +144,6 @@ export default function AdminLoans() {
         .eq("id", selectedLoan.resource_id);
     }
 
-    // Award wellness hours on return
     if (shouldAwardHours && selectedLoan.resources.resource_categories) {
       const cat = selectedLoan.resources.resource_categories;
       const deliveredAt = selectedLoan.delivered_at ? new Date(selectedLoan.delivered_at) : new Date();
@@ -183,6 +183,15 @@ export default function AdminLoans() {
   const activeLoans = loans.filter((l) => ["active", "overdue"].includes(l.status));
   const historyLoans = loans.filter((l) => ["returned", "rejected"].includes(l.status));
 
+  const getTabLoans = (tab: TabType) => {
+    switch (tab) {
+      case "pending": return pendingLoans;
+      case "approved": return approvedLoans;
+      case "active": return activeLoans;
+      case "history": return historyLoans;
+    }
+  };
+
   const filteredLoans = (loanList: Loan[]) =>
     loanList.filter(
       (l) =>
@@ -190,71 +199,86 @@ export default function AdminLoans() {
         l.resources?.name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-  const LoanRow = ({ loan }: { loan: Loan }) => {
+  const tabs: { key: TabType; label: string; count: number }[] = [
+    { key: "pending", label: "Pendientes", count: pendingLoans.length },
+    { key: "approved", label: "Aprobados", count: approvedLoans.length },
+    { key: "active", label: "Activos", count: activeLoans.length },
+    { key: "history", label: "Historial", count: historyLoans.length },
+  ];
+
+  const LoanCard = ({ loan }: { loan: Loan }) => {
     const config = statusConfig[loan.status];
     const StatusIcon = config.icon;
 
     return (
-      <TableRow>
-        <TableCell>
-          <div className="flex items-center gap-3">
+      <Card className="overflow-hidden card-touch">
+        <div className="flex flex-col sm:flex-row">
+          {/* Image */}
+          <div className="w-full sm:w-24 h-32 sm:h-auto bg-muted shrink-0">
             {loan.resources?.image_url ? (
-              <img src={loan.resources.image_url} alt="" className="w-10 h-10 rounded object-cover" />
+              <img src={loan.resources.image_url} alt="" className="w-full h-full object-cover" />
             ) : (
-              <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
-                <Package className="h-5 w-5 text-muted-foreground" />
+              <div className="w-full h-full flex items-center justify-center">
+                <Package className="h-8 w-8 text-muted-foreground" />
               </div>
             )}
-            <div>
-              <p className="font-medium">{loan.resources?.name}</p>
-              <p className="text-sm text-muted-foreground">
-                {loan.resources?.resource_categories?.name}
-              </p>
+          </div>
+          
+          {/* Content */}
+          <div className="flex-1 p-4 space-y-3">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="font-semibold truncate">{loan.resources?.name}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {loan.resources?.resource_categories?.name}
+                </p>
+              </div>
+              <Badge variant={config.variant} className="shrink-0">
+                <StatusIcon className="w-3 h-3 mr-1" />
+                {config.label}
+              </Badge>
+            </div>
+
+            {/* Student info */}
+            <div className="text-sm">
+              <p className="font-medium">{loan.profiles?.full_name}</p>
+              <p className="text-muted-foreground">{loan.profiles?.student_code || loan.profiles?.email}</p>
+            </div>
+
+            {/* Date */}
+            <p className="text-xs text-muted-foreground">
+              Solicitado: {format(new Date(loan.requested_at), "d MMM yyyy", { locale: es })}
+            </p>
+
+            {/* Actions */}
+            <div className="flex flex-wrap gap-2 pt-2">
+              {loan.status === "pending" && (
+                <>
+                  <Button size="sm" onClick={() => openActionDialog(loan, "approve")} className="flex-1 sm:flex-none">
+                    Aprobar
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => openActionDialog(loan, "reject")} className="flex-1 sm:flex-none">
+                    Rechazar
+                  </Button>
+                </>
+              )}
+              {loan.status === "approved" && (
+                <Button size="sm" onClick={() => openActionDialog(loan, "deliver")} className="w-full sm:w-auto">
+                  <ArrowRightLeft className="mr-1 h-3 w-3" />
+                  Entregar
+                </Button>
+              )}
+              {loan.status === "active" && (
+                <Button size="sm" onClick={() => openActionDialog(loan, "return")} className="w-full sm:w-auto">
+                  <CheckCircle className="mr-1 h-3 w-3" />
+                  Registrar Devolución
+                </Button>
+              )}
             </div>
           </div>
-        </TableCell>
-        <TableCell>
-          <div>
-            <p className="font-medium">{loan.profiles?.full_name}</p>
-            <p className="text-sm text-muted-foreground">{loan.profiles?.student_code || loan.profiles?.email}</p>
-          </div>
-        </TableCell>
-        <TableCell>
-          <Badge variant={config.variant}>
-            <StatusIcon className="w-3 h-3 mr-1" />
-            {config.label}
-          </Badge>
-        </TableCell>
-        <TableCell className="text-sm text-muted-foreground">
-          {format(new Date(loan.requested_at), "d MMM yyyy", { locale: es })}
-        </TableCell>
-        <TableCell>
-          <div className="flex gap-1">
-            {loan.status === "pending" && (
-              <>
-                <Button size="sm" variant="default" onClick={() => openActionDialog(loan, "approve")}>
-                  Aprobar
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => openActionDialog(loan, "reject")}>
-                  Rechazar
-                </Button>
-              </>
-            )}
-            {loan.status === "approved" && (
-              <Button size="sm" onClick={() => openActionDialog(loan, "deliver")}>
-                <ArrowRightLeft className="mr-1 h-3 w-3" />
-                Entregar
-              </Button>
-            )}
-            {loan.status === "active" && (
-              <Button size="sm" onClick={() => openActionDialog(loan, "return")}>
-                <CheckCircle className="mr-1 h-3 w-3" />
-                Devolver
-              </Button>
-            )}
-          </div>
-        </TableCell>
-      </TableRow>
+        </div>
+      </Card>
     );
   };
 
@@ -270,13 +294,15 @@ export default function AdminLoans() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div>
+      <div className="space-y-4 md:space-y-6">
+        {/* Header - Hidden on mobile as it's in the nav */}
+        <div className="hidden md:block">
           <h1 className="text-2xl font-bold text-foreground">Gestión de Préstamos</h1>
           <p className="text-muted-foreground">Administra las solicitudes y préstamos activos</p>
         </div>
 
-        <div className="relative max-w-sm">
+        {/* Search */}
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar por estudiante o recurso..."
@@ -291,65 +317,55 @@ export default function AdminLoans() {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <Tabs defaultValue="pending" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="pending">
-                Pendientes ({pendingLoans.length})
-              </TabsTrigger>
-              <TabsTrigger value="approved">
-                Aprobados ({approvedLoans.length})
-              </TabsTrigger>
-              <TabsTrigger value="active">
-                Activos ({activeLoans.length})
-              </TabsTrigger>
-              <TabsTrigger value="history">
-                Historial ({historyLoans.length})
-              </TabsTrigger>
-            </TabsList>
-
-            {["pending", "approved", "active", "history"].map((tab) => {
-              const tabLoans =
-                tab === "pending" ? pendingLoans :
-                tab === "approved" ? approvedLoans :
-                tab === "active" ? activeLoans : historyLoans;
-
-              return (
-                <TabsContent key={tab} value={tab}>
-                  {filteredLoans(tabLoans).length === 0 ? (
-                    <Card>
-                      <CardContent className="py-8 text-center text-muted-foreground">
-                        No hay préstamos en esta categoría
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <Card>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Recurso</TableHead>
-                            <TableHead>Estudiante</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead>Fecha</TableHead>
-                            <TableHead>Acciones</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredLoans(tabLoans).map((loan) => (
-                            <LoanRow key={loan.id} loan={loan} />
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </Card>
+          <>
+            {/* Mobile Tabs - Scrollable */}
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors",
+                    "touch-target active-scale",
+                    activeTab === tab.key
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
                   )}
-                </TabsContent>
-              );
-            })}
-          </Tabs>
+                >
+                  {tab.label}
+                  <span className={cn(
+                    "inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-xs rounded-full",
+                    activeTab === tab.key
+                      ? "bg-primary-foreground/20 text-primary-foreground"
+                      : "bg-background text-foreground"
+                  )}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Loans List */}
+            <div className="space-y-3">
+              {filteredLoans(getTabLoans(activeTab)).length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">No hay préstamos en esta categoría</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                filteredLoans(getTabLoans(activeTab)).map((loan) => (
+                  <LoanCard key={loan.id} loan={loan} />
+                ))
+              )}
+            </div>
+          </>
         )}
 
         {/* Action Dialog */}
         <Dialog open={!!actionType} onOpenChange={() => { setActionType(null); setSelectedLoan(null); }}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{getActionTitle()}</DialogTitle>
               <DialogDescription>
@@ -371,16 +387,17 @@ export default function AdminLoans() {
                     type="date"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
+                    className="touch-target"
                   />
                 </div>
               )}
               {actionType === "return" && selectedLoan?.resources?.resource_categories && (
-                <div className="rounded-lg bg-muted p-3">
-                  <p className="text-sm font-medium">Horas de bienestar a otorgar:</p>
-                  <p className="text-xl font-bold text-primary">
+                <div className="rounded-xl bg-primary/5 border border-primary/10 p-4">
+                  <p className="text-sm font-medium text-muted-foreground">Horas de bienestar a otorgar:</p>
+                  <p className="text-2xl font-bold text-primary">
                     ~{selectedLoan.resources.resource_categories.base_wellness_hours} horas base
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground mt-1">
                     + bonificación por tiempo de uso
                   </p>
                 </div>
@@ -392,17 +409,19 @@ export default function AdminLoans() {
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
                   placeholder="Observaciones sobre este préstamo..."
+                  className="min-h-[80px]"
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { setActionType(null); setSelectedLoan(null); }}>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => { setActionType(null); setSelectedLoan(null); }} className="w-full sm:w-auto">
                 Cancelar
               </Button>
               <Button
                 onClick={handleAction}
                 disabled={isProcessing}
                 variant={actionType === "reject" ? "destructive" : "default"}
+                className="w-full sm:w-auto"
               >
                 {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Confirmar
