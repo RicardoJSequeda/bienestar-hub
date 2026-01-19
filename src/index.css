@@ -352,3 +352,90 @@
     100% { background-position: -200% 0; }
   }
 }
+
+/* Mobile-optimized touch targets */
+@layer utilities {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Safe area padding for notched devices */
+  .safe-area-inset-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-inset-left {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-area-inset-right {
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Pull-to-refresh indicator area */
+  .overscroll-behavior-contain {
+    overscroll-behavior: contain;
+  }
+
+  /* Prevent text selection on touch */
+  .select-none-touch {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* Smooth momentum scrolling */
+  .scroll-smooth-touch {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  /* Active state for touch */
+  .active-scale:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease-out;
+  }
+
+  /* Hide scrollbar on mobile */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Bottom navigation safe area */
+  .bottom-nav-safe {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  /* Floating action button positioning */
+  .fab-position {
+    position: fixed;
+    bottom: calc(1.5rem + env(safe-area-inset-bottom));
+    right: 1.5rem;
+    z-index: 50;
+  }
+
+  /* Mobile card touch feedback */
+  .card-touch {
+    @apply transition-all duration-150 active:scale-[0.98] active:opacity-90;
+  }
+
+  /* Swipe hint animation */
+  .swipe-hint {
+    animation: swipe-hint 2s ease-in-out infinite;
+  }
+
+  @keyframes swipe-hint {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(-8px); }
+  }
+}

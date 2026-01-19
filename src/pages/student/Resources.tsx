@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Search, Package, Clock, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Search, Package, Clock, CheckCircle, XCircle, Loader2, SlidersHorizontal } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Resource {
   id: string;
@@ -42,6 +43,7 @@ export default function StudentResources() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [isRequesting, setIsRequesting] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     fetchResources();
@@ -120,11 +122,26 @@ export default function StudentResources() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "available":
-        return <Badge className="bg-success text-success-foreground"><CheckCircle className="w-3 h-3 mr-1" />Disponible</Badge>;
+        return (
+          <Badge className="bg-success/10 text-success border-success/20 hover:bg-success/20">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Disponible
+          </Badge>
+        );
       case "borrowed":
-        return <Badge variant="secondary"><Clock className="w-3 h-3 mr-1" />Prestado</Badge>;
+        return (
+          <Badge variant="secondary" className="bg-muted">
+            <Clock className="w-3 h-3 mr-1" />
+            Prestado
+          </Badge>
+        );
       case "maintenance":
-        return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />En mantenimiento</Badge>;
+        return (
+          <Badge variant="destructive" className="bg-destructive/10 text-destructive border-destructive/20">
+            <XCircle className="w-3 h-3 mr-1" />
+            Mantenimiento
+          </Badge>
+        );
       default:
         return null;
     }
@@ -132,36 +149,82 @@ export default function StudentResources() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div>
+      <div className="space-y-4 md:space-y-6">
+        {/* Header - Hidden on mobile */}
+        <div className="hidden md:block">
           <h1 className="text-2xl font-bold text-foreground">Catálogo de Recursos</h1>
           <p className="text-muted-foreground">
             Explora y solicita préstamos de recursos de bienestar
           </p>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar recursos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+        {/* Search and Filters */}
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar recursos..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="shrink-0 md:hidden"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </Button>
+            <div className="hidden md:block">
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full sm:w-[200px]">
-              <SelectValue placeholder="Categoría" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas las categorías</SelectItem>
+
+          {/* Mobile Filter Pills */}
+          {(showFilters || true) && (
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 md:hidden">
+              <button
+                onClick={() => setSelectedCategory("all")}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors",
+                  "touch-target active-scale",
+                  selectedCategory === "all"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                Todas
+              </button>
               {categories.map((cat) => (
-                <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors",
+                    "touch-target active-scale",
+                    selectedCategory === cat.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {cat.name}
+                </button>
               ))}
-            </SelectContent>
-          </Select>
+            </div>
+          )}
         </div>
 
         {/* Resources Grid */}
@@ -177,43 +240,54 @@ export default function StudentResources() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {filteredResources.map((resource) => (
-              <Card key={resource.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                {resource.image_url && (
-                  <div className="aspect-video bg-muted">
+              <Card key={resource.id} className="overflow-hidden hover:shadow-lg transition-all duration-300 card-touch group">
+                {/* Image */}
+                <div className="aspect-[4/3] bg-gradient-to-br from-muted to-muted/50 relative overflow-hidden">
+                  {resource.image_url ? (
                     <img
                       src={resource.image_url}
                       alt={resource.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                     />
-                  </div>
-                )}
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-lg">{resource.name}</CardTitle>
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Package className="h-12 w-12 text-muted-foreground/50" />
+                    </div>
+                  )}
+                  {/* Status overlay */}
+                  <div className="absolute top-3 right-3">
                     {getStatusBadge(resource.status)}
                   </div>
+                </div>
+                
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base line-clamp-1">{resource.name}</CardTitle>
                   {resource.resource_categories && (
-                    <Badge variant="outline" className="w-fit">
+                    <Badge variant="outline" className="w-fit text-xs">
                       {resource.resource_categories.name}
                     </Badge>
                   )}
                 </CardHeader>
+                
                 <CardContent className="space-y-3">
-                  <CardDescription className="line-clamp-2">
+                  <CardDescription className="line-clamp-2 text-sm min-h-[40px]">
                     {resource.description || "Sin descripción"}
                   </CardDescription>
+                  
                   {resource.resource_categories && (
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <Clock className="h-4 w-4" />
-                      <span>
-                        {resource.resource_categories.base_wellness_hours} horas base
-                      </span>
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="flex items-center gap-1.5 text-primary font-medium">
+                        <Clock className="h-4 w-4" />
+                        <span>{resource.resource_categories.base_wellness_hours}h</span>
+                      </div>
+                      <span className="text-muted-foreground text-xs">de bienestar</span>
                     </div>
                   )}
+                  
                   <Button
-                    className="w-full"
+                    className="w-full touch-target"
                     disabled={resource.status !== "available"}
                     onClick={() => setSelectedResource(resource)}
                   >
@@ -227,34 +301,34 @@ export default function StudentResources() {
 
         {/* Request Dialog */}
         <Dialog open={!!selectedResource} onOpenChange={() => setSelectedResource(null)}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Solicitar Préstamo</DialogTitle>
               <DialogDescription>
                 ¿Deseas solicitar el préstamo de "{selectedResource?.name}"?
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-3 py-4">
+            <div className="space-y-4 py-4">
               <p className="text-sm text-muted-foreground">
                 Tu solicitud será revisada por un administrador. Recibirás una notificación cuando sea aprobada o rechazada.
               </p>
               {selectedResource?.resource_categories && (
-                <div className="rounded-lg bg-muted p-3">
-                  <p className="text-sm font-medium">Horas de bienestar estimadas:</p>
-                  <p className="text-2xl font-bold text-primary">
+                <div className="rounded-xl bg-primary/5 border border-primary/10 p-4">
+                  <p className="text-sm font-medium text-muted-foreground">Horas de bienestar estimadas:</p>
+                  <p className="text-3xl font-bold text-primary">
                     {selectedResource.resource_categories.base_wellness_hours} horas
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground mt-1">
                     + {selectedResource.resource_categories.hourly_factor} por hora de uso
                   </p>
                 </div>
               )}
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setSelectedResource(null)}>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setSelectedResource(null)} className="w-full sm:w-auto">
                 Cancelar
               </Button>
-              <Button onClick={handleRequestLoan} disabled={isRequesting}>
+              <Button onClick={handleRequestLoan} disabled={isRequesting} className="w-full sm:w-auto">
                 {isRequesting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
