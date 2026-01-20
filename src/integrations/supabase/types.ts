@@ -14,6 +14,129 @@ export type Database = {
   }
   public: {
     Tables: {
+      alerts: {
+        Row: {
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          is_read: boolean
+          message: string | null
+          severity: string
+          target_role: Database["public"]["Enums"]["app_role"] | null
+          target_user_id: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          is_read?: boolean
+          message?: string | null
+          severity?: string
+          target_role?: Database["public"]["Enums"]["app_role"] | null
+          target_user_id?: string | null
+          title: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          is_read?: boolean
+          message?: string | null
+          severity?: string
+          target_role?: Database["public"]["Enums"]["app_role"] | null
+          target_user_id?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          new_data: Json | null
+          old_data: Json | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          new_data?: Json | null
+          old_data?: Json | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          new_data?: Json | null
+          old_data?: Json | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      demand_stats: {
+        Row: {
+          approval_rate: number | null
+          avg_loan_duration_hours: number | null
+          category_id: string | null
+          created_at: string
+          day_of_week: number | null
+          hour_of_day: number | null
+          id: string
+          period_end: string
+          period_start: string
+          request_count: number
+          resource_id: string | null
+        }
+        Insert: {
+          approval_rate?: number | null
+          avg_loan_duration_hours?: number | null
+          category_id?: string | null
+          created_at?: string
+          day_of_week?: number | null
+          hour_of_day?: number | null
+          id?: string
+          period_end: string
+          period_start: string
+          request_count?: number
+          resource_id?: string | null
+        }
+        Update: {
+          approval_rate?: number | null
+          avg_loan_duration_hours?: number | null
+          category_id?: string | null
+          created_at?: string
+          day_of_week?: number | null
+          hour_of_day?: number | null
+          id?: string
+          period_end?: string
+          period_start?: string
+          request_count?: number
+          resource_id?: string | null
+        }
+        Relationships: []
+      }
       event_categories: {
         Row: {
           created_at: string
@@ -140,14 +263,21 @@ export type Database = {
           admin_notes: string | null
           approved_at: string | null
           approved_by: string | null
+          auto_approved: boolean | null
           created_at: string
+          created_by_admin: boolean | null
+          damage_evidence_url: string | null
+          damage_notes: string | null
           delivered_at: string | null
           due_date: string | null
           id: string
+          pickup_deadline: string | null
+          queue_position: number | null
           requested_at: string
           resource_id: string
           returned_at: string | null
           status: Database["public"]["Enums"]["loan_status"]
+          trust_score_at_request: number | null
           updated_at: string
           user_id: string
         }
@@ -155,14 +285,21 @@ export type Database = {
           admin_notes?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          auto_approved?: boolean | null
           created_at?: string
+          created_by_admin?: boolean | null
+          damage_evidence_url?: string | null
+          damage_notes?: string | null
           delivered_at?: string | null
           due_date?: string | null
           id?: string
+          pickup_deadline?: string | null
+          queue_position?: number | null
           requested_at?: string
           resource_id: string
           returned_at?: string | null
           status?: Database["public"]["Enums"]["loan_status"]
+          trust_score_at_request?: number | null
           updated_at?: string
           user_id: string
         }
@@ -170,14 +307,21 @@ export type Database = {
           admin_notes?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          auto_approved?: boolean | null
           created_at?: string
+          created_by_admin?: boolean | null
+          damage_evidence_url?: string | null
+          damage_notes?: string | null
           delivered_at?: string | null
           due_date?: string | null
           id?: string
+          pickup_deadline?: string | null
+          queue_position?: number | null
           requested_at?: string
           resource_id?: string
           returned_at?: string | null
           status?: Database["public"]["Enums"]["loan_status"]
+          trust_score_at_request?: number | null
           updated_at?: string
           user_id?: string
         }
@@ -232,7 +376,11 @@ export type Database = {
           hourly_factor: number
           icon: string | null
           id: string
+          is_low_risk: boolean | null
+          max_loan_days: number | null
+          max_per_student: number | null
           name: string
+          requires_approval: boolean | null
         }
         Insert: {
           base_wellness_hours?: number
@@ -241,7 +389,11 @@ export type Database = {
           hourly_factor?: number
           icon?: string | null
           id?: string
+          is_low_risk?: boolean | null
+          max_loan_days?: number | null
+          max_per_student?: number | null
           name: string
+          requires_approval?: boolean | null
         }
         Update: {
           base_wellness_hours?: number
@@ -250,7 +402,47 @@ export type Database = {
           hourly_factor?: number
           icon?: string | null
           id?: string
+          is_low_risk?: boolean | null
+          max_loan_days?: number | null
+          max_per_student?: number | null
           name?: string
+          requires_approval?: boolean | null
+        }
+        Relationships: []
+      }
+      resource_queue: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          notified_at: string | null
+          position: number
+          requested_at: string
+          resource_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          notified_at?: string | null
+          position: number
+          requested_at?: string
+          resource_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          notified_at?: string | null
+          position?: number
+          requested_at?: string
+          resource_id?: string
+          status?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -297,6 +489,87 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      student_scores: {
+        Row: {
+          blocked_reason: string | null
+          blocked_until: string | null
+          created_at: string
+          damages: number
+          events_attended: number
+          id: string
+          is_blocked: boolean
+          late_returns: number
+          losses: number
+          on_time_returns: number
+          total_loans: number
+          trust_score: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          blocked_reason?: string | null
+          blocked_until?: string | null
+          created_at?: string
+          damages?: number
+          events_attended?: number
+          id?: string
+          is_blocked?: boolean
+          late_returns?: number
+          losses?: number
+          on_time_returns?: number
+          total_loans?: number
+          trust_score?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          blocked_reason?: string | null
+          blocked_until?: string | null
+          created_at?: string
+          damages?: number
+          events_attended?: number
+          id?: string
+          is_blocked?: boolean
+          late_returns?: number
+          losses?: number
+          on_time_returns?: number
+          total_loans?: number
+          trust_score?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      system_settings: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -357,6 +630,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_trust_score: { Args: { p_user_id: string }; Returns: number }
+      can_auto_approve: {
+        Args: { p_resource_id: string; p_user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -375,7 +653,16 @@ export type Database = {
         | "active"
         | "returned"
         | "overdue"
-      resource_status: "available" | "borrowed" | "maintenance"
+        | "lost"
+        | "damaged"
+        | "expired"
+        | "queued"
+      resource_status:
+        | "available"
+        | "borrowed"
+        | "maintenance"
+        | "reserved"
+        | "retired"
       wellness_source_type: "loan" | "event"
     }
     CompositeTypes: {
@@ -512,8 +799,18 @@ export const Constants = {
         "active",
         "returned",
         "overdue",
+        "lost",
+        "damaged",
+        "expired",
+        "queued",
       ],
-      resource_status: ["available", "borrowed", "maintenance"],
+      resource_status: [
+        "available",
+        "borrowed",
+        "maintenance",
+        "reserved",
+        "retired",
+      ],
       wellness_source_type: ["loan", "event"],
     },
   },
