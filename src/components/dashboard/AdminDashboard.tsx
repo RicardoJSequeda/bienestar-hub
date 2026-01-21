@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { AlertsPanel } from "@/components/alerts/AlertsPanel";
+import { useProactiveAlerts } from "@/hooks/use-proactive-alerts";
 import {
   Package,
   ClipboardList,
@@ -20,6 +22,7 @@ import {
   CheckCircle,
   XCircle,
   Sparkles,
+  Bell,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -43,6 +46,7 @@ interface PendingLoan {
 
 export function AdminDashboard() {
   const navigate = useNavigate();
+  const { runAllChecks } = useProactiveAlerts();
   const [stats, setStats] = useState<AdminStats>({
     totalResources: 0,
     availableResources: 0,
@@ -57,6 +61,8 @@ export function AdminDashboard() {
 
   useEffect(() => {
     const fetchStats = async () => {
+      // Run proactive alerts check
+      runAllChecks();
       try {
         // Fetch resource counts
         const { count: totalResources } = await supabase
@@ -335,53 +341,58 @@ export function AdminDashboard() {
         </Card>
       </div>
 
-      {/* System Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Resumen del Sistema</CardTitle>
-          <CardDescription>Estado general de la plataforma</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="flex items-center gap-4 p-4 rounded-xl bg-success/5 border border-success/20">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-success/10">
-                <CheckCircle className="h-6 w-6 text-success" />
+      {/* Bottom Row - Alerts */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <AlertsPanel />
+        
+        {/* System Overview */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Resumen del Sistema</CardTitle>
+            <CardDescription>Estado general de la plataforma</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-success/5 border border-success/20">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-success/10">
+                  <CheckCircle className="h-6 w-6 text-success" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats.availableResources}</p>
+                  <p className="text-sm text-muted-foreground">Recursos disponibles</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.availableResources}</p>
-                <p className="text-sm text-muted-foreground">Recursos disponibles</p>
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-warning/5 border border-warning/20">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-warning/10">
+                  <Clock className="h-6 w-6 text-warning" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats.activeLoans}</p>
+                  <p className="text-sm text-muted-foreground">Préstamos activos</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+                  <Calendar className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats.upcomingEvents}</p>
+                  <p className="text-sm text-muted-foreground">Eventos próximos</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-accent/10 border border-accent/30">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/20">
+                  <Sparkles className="h-6 w-6 text-accent-foreground" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats.totalHoursAwarded.toFixed(0)}</p>
+                  <p className="text-sm text-muted-foreground">Horas otorgadas</p>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-4 p-4 rounded-xl bg-warning/5 border border-warning/20">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-warning/10">
-                <Clock className="h-6 w-6 text-warning" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.activeLoans}</p>
-                <p className="text-sm text-muted-foreground">Préstamos activos</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 p-4 rounded-xl bg-primary/5 border border-primary/20">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                <Calendar className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.upcomingEvents}</p>
-                <p className="text-sm text-muted-foreground">Eventos próximos</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 p-4 rounded-xl bg-accent/10 border border-accent/30">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/20">
-                <Sparkles className="h-6 w-6 text-accent-foreground" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.totalHoursAwarded.toFixed(0)}</p>
-                <p className="text-sm text-muted-foreground">Horas otorgadas</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

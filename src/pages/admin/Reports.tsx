@@ -5,10 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Download, BarChart3, Package, Calendar, Clock, Users, TrendingUp, Loader2 } from "lucide-react";
+import { Download, BarChart3, Package, Calendar, Clock, Users, TrendingUp, Loader2, Sparkles } from "lucide-react";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
+import { DemandPrediction } from "@/components/reports/DemandPrediction";
+import { AlertsPanel } from "@/components/alerts/AlertsPanel";
 
 interface ResourceStats {
   name: string;
@@ -196,158 +199,192 @@ export default function AdminReports() {
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Reportes</h1>
-            <p className="text-muted-foreground">Estadísticas y análisis del sistema</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {months.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={exportToExcel}>
-              <Download className="mr-2 h-4 w-4" />
-              Exportar
-            </Button>
+            <h1 className="text-2xl font-bold text-foreground">Reportes y Análisis</h1>
+            <p className="text-muted-foreground">Estadísticas, predicciones y alertas del sistema</p>
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : (
-          <>
-            {/* Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-3">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Préstamos del Mes
-                  </CardTitle>
-                  <Package className="h-4 w-4 text-primary" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{monthlyStats.loans}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Eventos del Mes
-                  </CardTitle>
-                  <Calendar className="h-4 w-4 text-accent" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{monthlyStats.events}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Horas Otorgadas
-                  </CardTitle>
-                  <Clock className="h-4 w-4 text-success" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{monthlyStats.hours.toFixed(1)}h</div>
-                </CardContent>
-              </Card>
-            </div>
+        <Tabs defaultValue="overview" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="overview">
+              <BarChart3 className="mr-2 h-4 w-4" />
+              Resumen
+            </TabsTrigger>
+            <TabsTrigger value="prediction">
+              <TrendingUp className="mr-2 h-4 w-4" />
+              Predicción de Demanda
+            </TabsTrigger>
+            <TabsTrigger value="alerts">
+              <Sparkles className="mr-2 h-4 w-4" />
+              Alertas
+            </TabsTrigger>
+          </TabsList>
 
-            {/* Tables */}
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                    Recursos Más Prestados
-                  </CardTitle>
-                  <CardDescription>Top 10 recursos con más préstamos</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {resourceStats.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-4">
-                      No hay datos para este período
-                    </p>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Recurso</TableHead>
-                          <TableHead className="text-right">Préstamos</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {resourceStats.map((r, i) => (
-                          <TableRow key={i}>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">{r.name}</p>
-                                <p className="text-sm text-muted-foreground">{r.category}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right font-medium">{r.loan_count}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
+          {/* Overview Tab */}
+          <TabsContent value="overview">
+            <div className="space-y-6">
+              {/* Controls */}
+              <div className="flex items-center justify-end gap-2">
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {months.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button onClick={exportToExcel}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportar
+                </Button>
+              </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5 text-primary" />
-                    Top Estudiantes
-                  </CardTitle>
-                  <CardDescription>Estudiantes con más horas acumuladas</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {userStats.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-4">
-                      No hay datos disponibles
-                    </p>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Estudiante</TableHead>
-                          <TableHead className="text-right">Horas</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {userStats.map((u, i) => (
-                          <TableRow key={i}>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">{u.full_name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {u.loan_count} préstamos · {u.event_count} eventos
-                                </p>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right font-medium text-primary">
-                              {u.total_hours.toFixed(1)}h
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
+              {isLoading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <>
+                  {/* Summary Cards */}
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Préstamos del Mes
+                        </CardTitle>
+                        <Package className="h-4 w-4 text-primary" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{monthlyStats.loans}</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Eventos del Mes
+                        </CardTitle>
+                        <Calendar className="h-4 w-4 text-accent" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{monthlyStats.events}</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Horas Otorgadas
+                        </CardTitle>
+                        <Clock className="h-4 w-4 text-success" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{monthlyStats.hours.toFixed(1)}h</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Tables */}
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <TrendingUp className="h-5 w-5 text-primary" />
+                          Recursos Más Prestados
+                        </CardTitle>
+                        <CardDescription>Top 10 recursos con más préstamos</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {resourceStats.length === 0 ? (
+                          <p className="text-center text-muted-foreground py-4">
+                            No hay datos para este período
+                          </p>
+                        ) : (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Recurso</TableHead>
+                                <TableHead className="text-right">Préstamos</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {resourceStats.map((r, i) => (
+                                <TableRow key={i}>
+                                  <TableCell>
+                                    <div>
+                                      <p className="font-medium">{r.name}</p>
+                                      <p className="text-sm text-muted-foreground">{r.category}</p>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium">{r.loan_count}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Users className="h-5 w-5 text-primary" />
+                          Top Estudiantes
+                        </CardTitle>
+                        <CardDescription>Estudiantes con más horas acumuladas</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {userStats.length === 0 ? (
+                          <p className="text-center text-muted-foreground py-4">
+                            No hay datos disponibles
+                          </p>
+                        ) : (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Estudiante</TableHead>
+                                <TableHead className="text-right">Horas</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {userStats.map((u, i) => (
+                                <TableRow key={i}>
+                                  <TableCell>
+                                    <div>
+                                      <p className="font-medium">{u.full_name}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {u.loan_count} préstamos · {u.event_count} eventos
+                                      </p>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium text-primary">
+                                    {u.total_hours.toFixed(1)}h
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              )}
             </div>
-          </>
-        )}
+          </TabsContent>
+
+          {/* Prediction Tab */}
+          <TabsContent value="prediction">
+            <DemandPrediction />
+          </TabsContent>
+
+          {/* Alerts Tab */}
+          <TabsContent value="alerts">
+            <AlertsPanel />
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );

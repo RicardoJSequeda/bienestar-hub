@@ -6,12 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "@/hooks/use-toast";
-import { Plus, MoreVertical, Pencil, Trash2, Settings, Package, Calendar, Loader2 } from "lucide-react";
+import { Plus, MoreVertical, Pencil, Trash2, Settings, Package, Calendar, Loader2, Cog, ShieldCheck } from "lucide-react";
+import { SystemSettingsPanel } from "@/components/settings/SystemSettingsPanel";
+import { Badge } from "@/components/ui/badge";
 
 interface ResourceCategory {
   id: string;
@@ -20,6 +23,10 @@ interface ResourceCategory {
   icon: string | null;
   base_wellness_hours: number;
   hourly_factor: number;
+  is_low_risk: boolean | null;
+  requires_approval: boolean | null;
+  max_loan_days: number | null;
+  max_per_student: number | null;
 }
 
 interface EventCategory {
@@ -45,6 +52,10 @@ export default function AdminSettings() {
     icon: "",
     base_wellness_hours: "1",
     hourly_factor: "0.5",
+    is_low_risk: true,
+    requires_approval: true,
+    max_loan_days: "7",
+    max_per_student: "1",
   });
 
   useEffect(() => {
@@ -66,12 +77,17 @@ export default function AdminSettings() {
     setDialogType(type);
     if (item) {
       setEditingItem(item);
+      const resourceItem = item as ResourceCategory;
       setFormData({
         name: item.name,
         description: item.description || "",
         icon: item.icon || "",
-        base_wellness_hours: (item as ResourceCategory).base_wellness_hours?.toString() || "1",
-        hourly_factor: (item as ResourceCategory).hourly_factor?.toString() || "0.5",
+        base_wellness_hours: resourceItem.base_wellness_hours?.toString() || "1",
+        hourly_factor: resourceItem.hourly_factor?.toString() || "0.5",
+        is_low_risk: resourceItem.is_low_risk ?? true,
+        requires_approval: resourceItem.requires_approval ?? true,
+        max_loan_days: resourceItem.max_loan_days?.toString() || "7",
+        max_per_student: resourceItem.max_per_student?.toString() || "1",
       });
     } else {
       setEditingItem(null);
@@ -81,6 +97,10 @@ export default function AdminSettings() {
         icon: "",
         base_wellness_hours: "1",
         hourly_factor: "0.5",
+        is_low_risk: true,
+        requires_approval: true,
+        max_loan_days: "7",
+        max_per_student: "1",
       });
     }
   };
@@ -103,6 +123,10 @@ export default function AdminSettings() {
     if (dialogType === "resource") {
       categoryData.base_wellness_hours = parseFloat(formData.base_wellness_hours) || 1;
       categoryData.hourly_factor = parseFloat(formData.hourly_factor) || 0.5;
+      categoryData.is_low_risk = formData.is_low_risk;
+      categoryData.requires_approval = formData.requires_approval;
+      categoryData.max_loan_days = parseInt(formData.max_loan_days) || 7;
+      categoryData.max_per_student = parseInt(formData.max_per_student) || 1;
     }
 
     let error;
@@ -142,7 +166,7 @@ export default function AdminSettings() {
       <div className="space-y-6 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Configuración</h1>
-          <p className="text-muted-foreground">Gestiona las categorías y ajustes del sistema</p>
+          <p className="text-muted-foreground">Gestiona las categorías, reglas y ajustes del sistema</p>
         </div>
 
         {isLoading ? (
@@ -150,8 +174,12 @@ export default function AdminSettings() {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <Tabs defaultValue="resources" className="space-y-4">
+          <Tabs defaultValue="system" className="space-y-4">
             <TabsList>
+              <TabsTrigger value="system">
+                <Cog className="mr-2 h-4 w-4" />
+                Sistema
+              </TabsTrigger>
               <TabsTrigger value="resources">
                 <Package className="mr-2 h-4 w-4" />
                 Categorías de Recursos
@@ -162,13 +190,19 @@ export default function AdminSettings() {
               </TabsTrigger>
             </TabsList>
 
+            {/* System Settings Tab */}
+            <TabsContent value="system">
+              <SystemSettingsPanel />
+            </TabsContent>
+
+            {/* Resource Categories Tab */}
             <TabsContent value="resources">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div>
                     <CardTitle>Categorías de Recursos</CardTitle>
                     <CardDescription>
-                      Configura las categorías y las horas de bienestar asociadas
+                      Configura las categorías, reglas de aprobación y horas de bienestar
                     </CardDescription>
                   </div>
                   <Button onClick={() => handleOpenDialog("resource")}>
@@ -183,19 +217,28 @@ export default function AdminSettings() {
                         <TableHead>Nombre</TableHead>
                         <TableHead>Descripción</TableHead>
                         <TableHead>Horas Base</TableHead>
-                        <TableHead>Factor/Hora</TableHead>
+                        <TableHead>Días Máx.</TableHead>
+                        <TableHead>Riesgo</TableHead>
                         <TableHead className="text-right">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {resourceCategories.map((cat) => (
                         <TableRow key={cat.id}>
-                          <TableCell className="font-medium">{cat.name}</TableCell>
-                          <TableCell className="text-muted-foreground">
+                          <TableCell className="font-medium">
+                            {cat.icon && <span className="mr-2">{cat.icon}</span>}
+                            {cat.name}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground max-w-[200px] truncate">
                             {cat.description || "-"}
                           </TableCell>
                           <TableCell>{cat.base_wellness_hours}h</TableCell>
-                          <TableCell>{cat.hourly_factor}</TableCell>
+                          <TableCell>{cat.max_loan_days || 7} días</TableCell>
+                          <TableCell>
+                            <Badge variant={cat.is_low_risk ? "secondary" : "destructive"}>
+                              {cat.is_low_risk ? "Bajo" : "Alto"}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -226,6 +269,7 @@ export default function AdminSettings() {
               </Card>
             </TabsContent>
 
+            {/* Event Categories Tab */}
             <TabsContent value="events">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
@@ -252,7 +296,10 @@ export default function AdminSettings() {
                     <TableBody>
                       {eventCategories.map((cat) => (
                         <TableRow key={cat.id}>
-                          <TableCell className="font-medium">{cat.name}</TableCell>
+                          <TableCell className="font-medium">
+                            {cat.icon && <span className="mr-2">{cat.icon}</span>}
+                            {cat.name}
+                          </TableCell>
                           <TableCell className="text-muted-foreground">
                             {cat.description || "-"}
                           </TableCell>
@@ -290,13 +337,13 @@ export default function AdminSettings() {
 
         {/* Category Dialog */}
         <Dialog open={!!dialogType} onOpenChange={() => setDialogType(null)}>
-          <DialogContent>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>
                 {editingItem ? "Editar" : "Nueva"} Categoría de {dialogType === "resource" ? "Recursos" : "Eventos"}
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
               <div className="space-y-2">
                 <Label htmlFor="name">Nombre *</Label>
                 <Input
@@ -323,34 +370,78 @@ export default function AdminSettings() {
                 />
               </div>
               {dialogType === "resource" && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="base_hours">Horas Base</Label>
-                    <Input
-                      id="base_hours"
-                      type="number"
-                      step="0.5"
-                      value={formData.base_wellness_hours}
-                      onChange={(e) => setFormData({ ...formData, base_wellness_hours: e.target.value })}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Horas mínimas otorgadas por préstamo
-                    </p>
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="base_hours">Horas Base</Label>
+                      <Input
+                        id="base_hours"
+                        type="number"
+                        step="0.5"
+                        value={formData.base_wellness_hours}
+                        onChange={(e) => setFormData({ ...formData, base_wellness_hours: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="factor">Factor por Hora</Label>
+                      <Input
+                        id="factor"
+                        type="number"
+                        step="0.1"
+                        value={formData.hourly_factor}
+                        onChange={(e) => setFormData({ ...formData, hourly_factor: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="max_days">Días Máx. Préstamo</Label>
+                      <Input
+                        id="max_days"
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={formData.max_loan_days}
+                        onChange={(e) => setFormData({ ...formData, max_loan_days: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="max_per_student">Máx. por Estudiante</Label>
+                      <Input
+                        id="max_per_student"
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={formData.max_per_student}
+                        onChange={(e) => setFormData({ ...formData, max_per_student: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="factor">Factor por Hora</Label>
-                    <Input
-                      id="factor"
-                      type="number"
-                      step="0.1"
-                      value={formData.hourly_factor}
-                      onChange={(e) => setFormData({ ...formData, hourly_factor: e.target.value })}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Bonificación por hora de uso
-                    </p>
+                  <div className="space-y-4 pt-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Bajo Riesgo</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Permite auto-aprobación
+                        </p>
+                      </div>
+                      <Switch
+                        checked={formData.is_low_risk}
+                        onCheckedChange={(checked) => setFormData({ ...formData, is_low_risk: checked })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Requiere Aprobación</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Un admin debe aprobar
+                        </p>
+                      </div>
+                      <Switch
+                        checked={formData.requires_approval}
+                        onCheckedChange={(checked) => setFormData({ ...formData, requires_approval: checked })}
+                      />
+                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
             <DialogFooter>
