@@ -84,7 +84,7 @@ export function useProactiveAlerts() {
 
     if (loans) {
       const resourceCounts: Record<string, { count: number; name: string }> = {};
-      
+
       for (const loan of loans) {
         if (!resourceCounts[loan.resource_id]) {
           resourceCounts[loan.resource_id] = {
@@ -125,7 +125,7 @@ export function useProactiveAlerts() {
 
   const checkBlockedStudents = useCallback(async () => {
     const { data: blockedStudents } = await supabase
-      .from("student_scores")
+      .from("student_behavioral_status")
       .select(`
         id,
         user_id,

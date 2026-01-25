@@ -9,7 +9,9 @@ interface Profile {
   user_id: string;
   full_name: string;
   student_code: string | null;
-  major: string | null;
+  phone: string | null;
+  campus_id: string | null;
+  program_id: string | null;
   email: string;
 }
 
@@ -20,7 +22,15 @@ interface AuthContextType {
   role: UserRole | null;
   isAdmin: boolean;
   isLoading: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
+  signUp: (data: {
+    email: string;
+    password: string;
+    fullName: string;
+    studentCode: string;
+    phone: string;
+    campusId: string;
+    programId: string;
+  }) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -40,8 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .from("profiles")
       .select("*")
       .eq("user_id", userId)
-      .single();
-    
+      .maybeSingle();
+
     if (profileData) {
       setProfile(profileData);
     }
@@ -52,8 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .single();
-    
+      .limit(1)
+      .maybeSingle();
+
     if (roleData) {
       setRole(roleData.role as UserRole);
     }
@@ -99,14 +110,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const signUp = async (data: {
+    email: string;
+    password: string;
+    fullName: string;
+    studentCode: string;
+    phone: string;
+    campusId: string;
+    programId: string;
+  }) => {
     const { error } = await supabase.auth.signUp({
-      email,
-      password,
+      email: data.email,
+      password: data.password,
       options: {
         emailRedirectTo: window.location.origin,
         data: {
-          full_name: fullName,
+          full_name: data.fullName,
+          student_code: data.studentCode,
+          phone: data.phone,
+          campus_id: data.campusId,
+          program_id: data.programId,
         },
       },
     });

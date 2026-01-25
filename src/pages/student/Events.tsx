@@ -1,16 +1,20 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Calendar, Clock, MapPin, Users, Loader2, CheckCircle } from "lucide-react";
+import { Calendar, Clock, MapPin, Users, Loader2, CheckCircle, Search, Play, Ticket, ChevronRight, Share2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { HeroSkeleton, CardSkeleton } from "@/components/ui/skeleton-loaders";
+import { EmptyEvents } from "@/components/ui/empty-states";
+import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 
 interface Event {
   id: string;
@@ -32,330 +36,347 @@ interface Event {
   is_enrolled: boolean;
 }
 
+interface Category {
+  id: string;
+  name: string;
+  icon: string | null;
+}
+
 export default function StudentEvents() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [events, setEvents] = useState<Event[]>([]);
   const [myEnrollments, setMyEnrollments] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [isEnrolling, setIsEnrolling] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     if (profile?.user_id) {
-      fetchEvents();
+      fetchData();
     }
   }, [profile?.user_id]);
 
-  const fetchEvents = async () => {
-    // Fetch events
-    const { data: eventsData, error } = await supabase
-      .from("events")
-      .select(`
-        *,
-        event_categories (id, name, icon)
-      `)
-      .eq("is_active", true)
-      .gte("end_date", new Date().toISOString())
-      .order("start_date");
+  const fetchData = async () => {
+    try {
+      // Fetch categories
+      const { data: categoriesData } = await supabase
+        .from("event_categories")
+        .select("*");
+      if (categoriesData) setCategories(categoriesData);
 
-    if (error) {
-      console.error("Error fetching events:", error);
-      return;
+      // Fetch events
+      const { data: eventsData, error } = await supabase
+        .from("events")
+        .select(`
+          *,
+          event_categories (id, name, icon)
+        `)
+        .eq("is_active", true)
+        .gte("end_date", new Date().toISOString())
+        .order("start_date");
+
+      if (error) throw error;
+
+      // Fetch enrollment counts
+      const { data: enrollmentCounts } = await supabase
+        .from("event_enrollments")
+        .select("event_id");
+
+      // Fetch user's enrollments
+      const { data: userEnrollments } = await supabase
+        .from("event_enrollments")
+        .select("event_id")
+        .eq("user_id", profile!.user_id);
+
+      const enrolledEventIds = userEnrollments?.map((e) => e.event_id) || [];
+      setMyEnrollments(enrolledEventIds);
+
+      // Count enrollments per event
+      const countMap: Record<string, number> = {};
+      enrollmentCounts?.forEach((e) => {
+        countMap[e.event_id] = (countMap[e.event_id] || 0) + 1;
+      });
+
+      const eventsWithCounts = eventsData?.map((event) => ({
+        ...event,
+        enrollment_count: countMap[event.id] || 0,
+        is_enrolled: enrolledEventIds.includes(event.id),
+      })) as Event[];
+
+      setEvents(eventsWithCounts || []);
+    } catch (err) {
+      console.error("Unexpected error in fetchData:", err);
+      toast({ title: "Error", description: "No se pudieron cargar los eventos", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
-
-    // Fetch enrollment counts
-    const { data: enrollmentCounts } = await supabase
-      .from("event_enrollments")
-      .select("event_id");
-
-    // Fetch user's enrollments
-    const { data: userEnrollments } = await supabase
-      .from("event_enrollments")
-      .select("event_id")
-      .eq("user_id", profile!.user_id);
-
-    const enrolledEventIds = userEnrollments?.map((e) => e.event_id) || [];
-    setMyEnrollments(enrolledEventIds);
-
-    // Count enrollments per event
-    const countMap: Record<string, number> = {};
-    enrollmentCounts?.forEach((e) => {
-      countMap[e.event_id] = (countMap[e.event_id] || 0) + 1;
-    });
-
-    const eventsWithCounts = eventsData?.map((event) => ({
-      ...event,
-      enrollment_count: countMap[event.id] || 0,
-      is_enrolled: enrolledEventIds.includes(event.id),
-    })) as Event[];
-
-    setEvents(eventsWithCounts || []);
-    setIsLoading(false);
   };
 
-  const handleEnroll = async () => {
-    if (!selectedEvent || !profile?.user_id) return;
+  useRealtimeSubscription("events", fetchData);
+  useRealtimeSubscription("event_enrollments", fetchData);
 
-    setIsEnrolling(true);
+  const handleEnroll = async (event: Event) => {
+    if (!profile?.user_id) return;
+    setIsProcessing(true);
 
     const { error } = await supabase
       .from("event_enrollments")
       .insert({
         user_id: profile.user_id,
-        event_id: selectedEvent.id,
+        event_id: event.id,
       });
 
     if (error) {
-      console.error("Error enrolling:", error);
-      toast({
-        title: "Error",
-        description: "No se pudo inscribir al evento. Intenta de nuevo.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "No se pudo inscribir al evento.", variant: "destructive" });
     } else {
-      toast({
-        title: "¡Inscripción exitosa!",
-        description: `Te has inscrito a "${selectedEvent.title}"`,
-      });
-      setMyEnrollments([...myEnrollments, selectedEvent.id]);
-      setEvents(events.map((e) => 
-        e.id === selectedEvent.id 
-          ? { ...e, is_enrolled: true, enrollment_count: e.enrollment_count + 1 }
-          : e
-      ));
+      toast({ title: "¡Inscripción exitosa!", description: `Te has inscrito a "${event.title}"` });
+      fetchData();
     }
-    setSelectedEvent(null);
-    setIsEnrolling(false);
+    setIsProcessing(false);
   };
 
-  const handleUnenroll = async (eventId: string) => {
+  const handleUnenroll = async (event: Event) => {
+    if (!profile?.user_id) return;
+    setIsProcessing(true);
+
     const { error } = await supabase
       .from("event_enrollments")
       .delete()
-      .eq("user_id", profile!.user_id)
-      .eq("event_id", eventId);
+      .eq("user_id", profile.user_id)
+      .eq("event_id", event.id);
 
     if (error) {
-      toast({
-        title: "Error",
-        description: "No se pudo cancelar la inscripción",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "No se pudo cancelar la inscripción", variant: "destructive" });
     } else {
-      toast({
-        title: "Inscripción cancelada",
-        description: "Has cancelado tu inscripción al evento",
-      });
-      setMyEnrollments(myEnrollments.filter((id) => id !== eventId));
-      setEvents(events.map((e) => 
-        e.id === eventId 
-          ? { ...e, is_enrolled: false, enrollment_count: e.enrollment_count - 1 }
-          : e
-      ));
+      toast({ title: "Inscripción cancelada", description: "Has liberado tu cupo." });
+      fetchData();
     }
+    setIsProcessing(false);
   };
 
-  const formatEventDate = (start: string, end: string) => {
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    return `${format(startDate, "d 'de' MMMM, HH:mm", { locale: es })} - ${format(endDate, "HH:mm", { locale: es })}`;
+  const filteredEvents = events.filter((event) => {
+    const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      event.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === "all" || event.event_categories?.id === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const featuredEvent = events.find(e => !e.is_enrolled) || events[0];
+  const myAgenda = events.filter(e => e.is_enrolled);
+
+  const formatEventDate = (start: string) => {
+    return format(new Date(start), "d 'de' MMMM", { locale: es });
   };
 
-  const availableEvents = events.filter((e) => !e.is_enrolled);
-  const enrolledEvents = events.filter((e) => e.is_enrolled);
+  const formatEventTime = (start: string, end: string) => {
+    return `${format(new Date(start), "HH:mm")} - ${format(new Date(end), "HH:mm")}`;
+  };
 
-  const EventCard = ({ event, showEnrollButton = true }: { event: Event; showEnrollButton?: boolean }) => {
-    const isFull = event.max_participants ? event.enrollment_count >= event.max_participants : false;
-
+  if (isLoading) {
     return (
-      <Card className="overflow-hidden hover:shadow-md transition-shadow">
-        {event.image_url && (
-          <div className="aspect-video bg-muted">
-            <img
-              src={event.image_url}
-              alt={event.title}
-              className="w-full h-full object-cover"
-            />
+      <DashboardLayout>
+        <div className="space-y-6">
+          <HeroSkeleton />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <CardSkeleton /> <CardSkeleton /> <CardSkeleton />
           </div>
-        )}
-        <CardHeader className="pb-2">
-          <div className="flex items-start justify-between gap-2">
-            <CardTitle className="text-lg">{event.title}</CardTitle>
-            <Badge variant="secondary" className="shrink-0">
-              <Clock className="w-3 h-3 mr-1" />
-              {event.wellness_hours}h
-            </Badge>
-          </div>
-          {event.event_categories && (
-            <Badge variant="outline" className="w-fit">
-              {event.event_categories.name}
-            </Badge>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <CardDescription className="line-clamp-2">
-            {event.description || "Sin descripción"}
-          </CardDescription>
-          <div className="space-y-1 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              <span>{formatEventDate(event.start_date, event.end_date)}</span>
-            </div>
-            {event.location && (
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
-                <span>{event.location}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              <span>
-                {event.enrollment_count}
-                {event.max_participants ? ` / ${event.max_participants}` : ""} inscritos
-              </span>
-            </div>
-          </div>
-          {showEnrollButton ? (
-            event.is_enrolled ? (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => handleUnenroll(event.id)}
-              >
-                <CheckCircle className="mr-2 h-4 w-4" />
-                Inscrito - Cancelar
-              </Button>
-            ) : (
-              <Button
-                className="w-full"
-                disabled={isFull}
-                onClick={() => setSelectedEvent(event)}
-              >
-                {isFull ? "Cupo Lleno" : "Inscribirse"}
-              </Button>
-            )
-          ) : (
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => handleUnenroll(event.id)}
-            >
-              Cancelar Inscripción
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+        </div>
+      </DashboardLayout>
     );
-  };
+  }
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Eventos de Bienestar</h1>
-          <p className="text-muted-foreground">
-            Descubre y participa en eventos que otorgan horas de bienestar
-          </p>
+      <div className="space-y-8 animate-fade-in pb-10">
+
+        {/* Header & Search */}
+        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Agenda de Bienestar</h1>
+            <p className="text-muted-foreground">Inscríbete y participa para sumar horas de bienestar</p>
+          </div>
+          <div className="relative w-full md:w-96">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar eventos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 h-12 rounded-full bg-background border shadow-sm focus-visible:ring-primary"
+            />
+          </div>
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        {/* Categories Pills */}
+        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+          <Button
+            variant={selectedCategory === 'all' ? 'default' : 'outline'}
+            className="rounded-full px-6"
+            onClick={() => setSelectedCategory('all')}
+          >
+            Todos
+          </Button>
+          {categories.map(cat => (
+            <Button
+              key={cat.id}
+              variant={selectedCategory === cat.id ? 'default' : 'outline'}
+              className="rounded-full px-6 whitespace-nowrap"
+              onClick={() => setSelectedCategory(cat.id)}
+            >
+              {cat.name}
+            </Button>
+          ))}
+        </div>
+
+        {/* Featured Event Hero (Only if not searching) */}
+        {!searchTerm && selectedCategory === 'all' && featuredEvent && (
+          <div className="relative rounded-3xl overflow-hidden shadow-2xl min-h-[450px] flex items-end group">
+            {featuredEvent.image_url ? (
+              <img src={featuredEvent.image_url} alt={featuredEvent.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
+            ) : (
+              <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1544367563-12123d832d34?q=80&w=2070')] bg-cover bg-center" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
+
+            <div className="relative z-10 p-8 md:p-12 w-full max-w-4xl">
+              <div className="flex items-center gap-3 mb-4">
+                <Badge className="bg-primary hover:bg-primary text-white border-0 px-3 py-1 text-sm">{featuredEvent.event_categories?.name || "Evento"}</Badge>
+                <Badge variant="outline" className="text-white border-white/30 backdrop-blur-md bg-white/10">
+                  <Clock className="w-3 h-3 mr-1" /> {featuredEvent.wellness_hours} Horas
+                </Badge>
+              </div>
+              <h1 className="text-3xl md:text-5xl font-black text-white mb-4 leading-tight">{featuredEvent.title}</h1>
+              <p className="text-lg text-white/80 line-clamp-2 max-w-2xl mb-8">{featuredEvent.description}</p>
+
+              <div className="flex flex-wrap gap-4">
+                {featuredEvent.is_enrolled ? (
+                  <Button size="lg" className="rounded-full bg-green-500 hover:bg-green-600 text-white border-0 px-8" onClick={() => navigate(`/events/${featuredEvent.id}`)}>
+                    <CheckCircle className="w-5 h-5 mr-2" />
+                    Ya estás inscrito
+                  </Button>
+                ) : (
+                  <Button size="lg" className="rounded-full px-8 py-6 text-lg font-bold" onClick={() => handleEnroll(featuredEvent)} disabled={isProcessing}>
+                    <Ticket className="w-5 h-5 mr-2" />
+                    Inscribirse Ahora
+                  </Button>
+                )}
+                <Button size="lg" variant="outline" className="rounded-full px-8 py-6 text-lg text-white border-white/30 hover:bg-white/10 backdrop-blur-md" onClick={() => navigate(`/events/${featuredEvent.id}`)}>
+                  Ver Detalles
+                </Button>
+              </div>
+            </div>
           </div>
-        ) : (
-          <Tabs defaultValue="available" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="available">
-                Disponibles ({availableEvents.length})
-              </TabsTrigger>
-              <TabsTrigger value="enrolled">
-                Mis Inscripciones ({enrolledEvents.length})
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="available">
-              {availableEvents.length === 0 ? (
-                <Card>
-                  <CardContent className="flex flex-col items-center justify-center py-12">
-                    <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">No hay eventos disponibles</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {availableEvents.map((event) => (
-                    <EventCard key={event.id} event={event} />
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="enrolled">
-              {enrolledEvents.length === 0 ? (
-                <Card>
-                  <CardContent className="flex flex-col items-center justify-center py-12">
-                    <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">No estás inscrito en ningún evento</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {enrolledEvents.map((event) => (
-                    <EventCard key={event.id} event={event} showEnrollButton={false} />
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
         )}
 
-        {/* Enrollment Dialog */}
-        <Dialog open={!!selectedEvent} onOpenChange={() => setSelectedEvent(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Inscribirse al Evento</DialogTitle>
-              <DialogDescription>
-                ¿Deseas inscribirte a "{selectedEvent?.title}"?
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3 py-4">
-              {selectedEvent && (
-                <>
-                  <div className="rounded-lg bg-muted p-3">
-                    <p className="text-sm font-medium">Horas de bienestar:</p>
-                    <p className="text-2xl font-bold text-primary">
-                      {selectedEvent.wellness_hours} horas
-                    </p>
-                  </div>
-                  <div className="text-sm text-muted-foreground space-y-1">
-                    <p><strong>Fecha:</strong> {formatEventDate(selectedEvent.start_date, selectedEvent.end_date)}</p>
-                    {selectedEvent.location && (
-                      <p><strong>Lugar:</strong> {selectedEvent.location}</p>
+        {/* My Agenda Section */}
+        {myAgenda.length > 0 && selectedCategory === 'all' && !searchTerm && (
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold tracking-tight">Mi Agenda</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {myAgenda.map(event => (
+                <div key={event.id} className="group relative bg-card rounded-2xl p-4 border shadow-sm hover:shadow-md transition-all flex gap-4 items-center cursor-pointer" onClick={() => navigate(`/events/${event.id}`)}>
+                  <div className="h-20 w-20 rounded-xl bg-muted overflow-hidden shrink-0">
+                    {event.image_url ? (
+                      <img src={event.image_url} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary"><Calendar className="w-8 h-8" /></div>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Las horas se otorgarán cuando un administrador registre tu asistencia.
-                  </p>
-                </>
-              )}
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-primary uppercase mb-0.5">{formatEventDate(event.start_date)}</p>
+                    <h3 className="font-bold truncate">{event.title}</h3>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> {formatEventTime(event.start_date, event.end_date)}
+                    </p>
+                  </div>
+                  <div className="ml-auto">
+                    <Button size="icon" variant="ghost" className="rounded-full"><ChevronRight className="w-5 h-5 text-muted-foreground" /></Button>
+                  </div>
+                </div>
+              ))}
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setSelectedEvent(null)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleEnroll} disabled={isEnrolling}>
-                {isEnrolling ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Inscribiendo...
-                  </>
-                ) : (
-                  "Confirmar Inscripción"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </div>
+        )}
+
+        {/* All Available Events Grid */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold tracking-tight">
+              {searchTerm ? "Resultados de búsqueda" : "Próximos Eventos"}
+            </h2>
+            <span className="text-sm text-muted-foreground font-medium bg-muted/50 px-3 py-1 rounded-full">
+              {filteredEvents.length} eventos
+            </span>
+          </div>
+
+          {filteredEvents.length === 0 ? (
+            <EmptyEvents />
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {filteredEvents.map((event) => {
+                const isFull = event.max_participants ? (event.enrollment_count >= event.max_participants) : false;
+                return (
+                  <div key={event.id} className="group bg-card rounded-3xl overflow-hidden border-0 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full cursor-pointer" onClick={() => navigate(`/events/${event.id}`)}>
+                    {/* Image */}
+                    <div className="relative aspect-[4/3] bg-muted overflow-hidden">
+                      {event.image_url ? (
+                        <img src={event.image_url} alt={event.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center bg-accent/5"><Calendar className="w-12 h-12 text-accent/20" /></div>
+                      )}
+                      <div className="absolute top-3 right-3 flex gap-2">
+                        <Badge className="bg-white/90 backdrop-blur text-black border-0 font-bold shadow-sm">{formatEventDate(event.start_date)}</Badge>
+                      </div>
+                      {event.is_enrolled && (
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-[2px]">
+                          <div className="bg-green-500 text-white px-4 py-2 rounded-full font-bold flex items-center shadow-lg transform scale-110">
+                            <CheckCircle className="w-5 h-5 mr-2" /> Inscrito
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-5 flex flex-col flex-1">
+                      <div className="mb-2">
+                        <span className="text-xs font-bold text-primary tracking-wider uppercase">{event.event_categories?.name || "General"}</span>
+                        <h3 className="font-bold text-lg leading-tight mt-1 line-clamp-2 group-hover:text-primary transition-colors">{event.title}</h3>
+                      </div>
+
+                      <div className="space-y-2 mt-auto">
+                        <div className="flex items-center text-sm text-muted-foreground">
+                          <Clock className="w-4 h-4 mr-2" />
+                          {formatEventTime(event.start_date, event.end_date)}
+                        </div>
+                        <div className="flex items-center text-sm text-muted-foreground">
+                          <MapPin className="w-4 h-4 mr-2" />
+                          <span className="truncate">{event.location || "Ubicación por definir"}</span>
+                        </div>
+                        <div className="flex items-center text-sm text-muted-foreground">
+                          <Users className="w-4 h-4 mr-2" />
+                          <span>{event.enrollment_count} {event.max_participants && `/ ${event.max_participants}`} inscritos</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 pt-4 border-t border-border/50 flex gap-2">
+                        {event.is_enrolled ? (
+                          <Button variant="ghost" className="w-full text-destructive hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); handleUnenroll(event); }}>
+                            Cancelar
+                          </Button>
+                        ) : (
+                          <Button className="w-full rounded-xl font-bold" disabled={isFull || isProcessing} onClick={(e) => { e.stopPropagation(); handleEnroll(event); }}>
+                            {isFull ? "Cupo Lleno" : "Inscribirse"}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </DashboardLayout>
   );

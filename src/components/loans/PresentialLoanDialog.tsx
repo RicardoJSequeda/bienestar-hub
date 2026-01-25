@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Search, UserPlus, Package, CheckCircle } from "lucide-react";
+import { Loader2, Search, UserPlus, Package, CheckCircle, ArrowRightLeft } from "lucide-react";
 import { TrustScoreBadge } from "./TrustScoreBadge";
 import { format, addDays } from "date-fns";
 
@@ -57,18 +57,21 @@ export function PresentialLoanDialog({ open, onOpenChange, onSuccess }: Presenti
   const [dueDate, setDueDate] = useState(format(addDays(new Date(), 7), "yyyy-MM-dd"));
   const [notes, setNotes] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [programs, setPrograms] = useState<Array<{ id: string; name: string }>>([]);
 
   // New student form
   const [newStudent, setNewStudent] = useState({
     full_name: "",
     email: "",
     student_code: "",
-    major: "",
+    phone: "",
+    program_id: "",
   });
 
   useEffect(() => {
     if (open) {
       fetchAvailableResources();
+      fetchPrograms();
     }
   }, [open]);
 
@@ -87,7 +90,7 @@ export function PresentialLoanDialog({ open, onOpenChange, onSuccess }: Presenti
     setSelectedResource(null);
     setDueDate(format(addDays(new Date(), 7), "yyyy-MM-dd"));
     setNotes("");
-    setNewStudent({ full_name: "", email: "", student_code: "", major: "" });
+    setNewStudent({ full_name: "", email: "", student_code: "", phone: "", program_id: "" });
   };
 
   const fetchAvailableResources = async () => {
@@ -103,8 +106,27 @@ export function PresentialLoanDialog({ open, onOpenChange, onSuccess }: Presenti
     if (data) setResources(data as Resource[]);
   };
 
+  const fetchPrograms = async () => {
+    const { data } = await supabase
+      .from("academic_programs")
+      .select("id, name")
+      .order("name");
+    if (data) setPrograms(data);
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchTerm.trim().length >= 2) {
+        searchStudents();
+      } else if (searchTerm.trim().length === 0) {
+        setSearchResults([]);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const searchStudents = async () => {
-    if (!searchTerm.trim()) return;
     setIsSearching(true);
 
     const { data } = await supabase
@@ -119,10 +141,10 @@ export function PresentialLoanDialog({ open, onOpenChange, onSuccess }: Presenti
 
   const selectStudent = async (profile: Profile) => {
     setSelectedStudent(profile);
-    
+
     // Fetch student score
     const { data: scoreData } = await supabase
-      .from("student_scores")
+      .from("student_behavioral_status")
       .select("trust_score, is_blocked, blocked_reason")
       .eq("user_id", profile.user_id)
       .maybeSingle();
@@ -135,6 +157,35 @@ export function PresentialLoanDialog({ open, onOpenChange, onSuccess }: Presenti
     if (!newStudent.full_name || !newStudent.email) {
       toast({ title: "Error", description: "Nombre y email son requeridos", variant: "destructive" });
       return;
+    }
+
+    // Validar código de 6 dígitos si se proporciona
+    if (newStudent.student_code) {
+      const codeRegex = /^\d{6}$/;
+      if (!codeRegex.test(newStudent.student_code)) {
+        toast({
+          title: "Código inválido",
+          description: "El código debe tener exactamente 6 dígitos (ej: 507730)",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Verificar código único
+      const { data: existingCode } = await supabase
+        .from("profiles")
+        .select("student_code")
+        .eq("student_code", newStudent.student_code)
+        .maybeSingle();
+
+      if (existingCode) {
+        toast({
+          title: "Código duplicado",
+          description: "Este código ya está registrado. Verifica el código o busca al estudiante.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     setIsProcessing(true);
@@ -164,10 +215,10 @@ export function PresentialLoanDialog({ open, onOpenChange, onSuccess }: Presenti
         return;
       }
 
-      toast({ 
-        title: "Error", 
-        description: "No se pudo crear el usuario. Verifica que el email no exista.", 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: "No se pudo crear el usuario. Verifica que el email no exista.",
+        variant: "destructive"
       });
       setIsProcessing(false);
       return;
@@ -179,7 +230,8 @@ export function PresentialLoanDialog({ open, onOpenChange, onSuccess }: Presenti
         .from("profiles")
         .update({
           student_code: newStudent.student_code || null,
-          major: newStudent.major || null,
+          phone: newStudent.phone || null,
+          program_id: newStudent.program_id || null,
         })
         .eq("user_id", authData.user.id);
 
@@ -191,6 +243,21 @@ export function PresentialLoanDialog({ open, onOpenChange, onSuccess }: Presenti
         .single();
 
       if (profile) {
+        // Enviar email de activación de cuenta
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+          newStudent.email,
+          {
+            redirectTo: `${window.location.origin}/set-password`,
+          }
+        );
+
+        if (!resetError) {
+          toast({
+            title: "Estudiante creado y notificado",
+            description: `Se ha enviado un email a ${newStudent.email} para establecer su contraseña.`,
+          });
+        }
+
         selectStudent(profile);
       }
     }
@@ -200,11 +267,11 @@ export function PresentialLoanDialog({ open, onOpenChange, onSuccess }: Presenti
 
   const selectResource = (resource: Resource) => {
     setSelectedResource(resource);
-    
+
     // Set due date based on category settings
     const maxDays = resource.resource_categories?.max_loan_days || 7;
     setDueDate(format(addDays(new Date(), maxDays), "yyyy-MM-dd"));
-    
+
     setStep("confirm");
   };
 
@@ -262,11 +329,11 @@ export function PresentialLoanDialog({ open, onOpenChange, onSuccess }: Presenti
       },
     });
 
-    toast({ 
-      title: "Préstamo creado", 
-      description: `${selectedResource.name} prestado a ${selectedStudent.full_name}` 
+    toast({
+      title: "Préstamo creado",
+      description: `${selectedResource.name} prestado a ${selectedStudent.full_name}`
     });
-    
+
     setIsProcessing(false);
     onOpenChange(false);
     onSuccess();
@@ -293,34 +360,39 @@ export function PresentialLoanDialog({ open, onOpenChange, onSuccess }: Presenti
         {/* Step: Search Student */}
         {step === "search" && (
           <div className="space-y-4">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Nombre, email o código..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && searchStudents()}
-                  className="pl-10"
-                />
-              </div>
-              <Button onClick={searchStudents} disabled={isSearching}>
-                {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
-              </Button>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Escribe el nombre, email o código..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+                autoFocus
+              />
+              {isSearching && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                </div>
+              )}
             </div>
 
             {searchResults.length > 0 && (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1 animate-in fade-in slide-in-from-top-2">
                 {searchResults.map((profile) => (
                   <button
                     key={profile.id}
                     onClick={() => selectStudent(profile)}
-                    className="w-full p-3 rounded-lg border bg-card hover:bg-accent text-left transition-colors"
+                    className="w-full p-3 rounded-lg border bg-card hover:bg-accent hover:border-primary/50 text-left transition-all group"
                   >
-                    <p className="font-medium">{profile.full_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {profile.student_code || profile.email}
-                    </p>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="font-medium group-hover:text-primary transition-colors">{profile.full_name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {profile.student_code || profile.email}
+                        </p>
+                      </div>
+                      <ArrowRightLeft className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
                   </button>
                 ))}
               </div>
@@ -341,46 +413,86 @@ export function PresentialLoanDialog({ open, onOpenChange, onSuccess }: Presenti
         {/* Step: Create Student */}
         {step === "create" && (
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Nombre completo *</Label>
-              <Input
-                value={newStudent.full_name}
-                onChange={(e) => setNewStudent({ ...newStudent, full_name: e.target.value })}
-                placeholder="Juan Pérez"
-              />
+            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+              <p className="text-sm text-muted-foreground">
+                <strong className="text-foreground">Registrando nuevo estudiante:</strong> Los datos ingresados se guardarán en el sistema para futuros préstamos.
+              </p>
             </div>
-            <div className="space-y-2">
-              <Label>Email institucional *</Label>
-              <Input
-                type="email"
-                value={newStudent.email}
-                onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                placeholder="juan.perez@universidad.edu"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Código de estudiante</Label>
+                <Label htmlFor="create-name">Nombre completo *</Label>
                 <Input
-                  value={newStudent.student_code}
-                  onChange={(e) => setNewStudent({ ...newStudent, student_code: e.target.value })}
-                  placeholder="2024001"
+                  id="create-name"
+                  value={newStudent.full_name}
+                  onChange={(e) => setNewStudent({ ...newStudent, full_name: e.target.value })}
+                  placeholder="Ej: Juan Carlos Pérez López"
+                  className="h-11"
                 />
               </div>
+
               <div className="space-y-2">
-                <Label>Carrera</Label>
+                <Label htmlFor="create-email">Email institucional *</Label>
                 <Input
-                  value={newStudent.major}
-                  onChange={(e) => setNewStudent({ ...newStudent, major: e.target.value })}
-                  placeholder="Ingeniería"
+                  id="create-email"
+                  type="email"
+                  value={newStudent.email}
+                  onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                  placeholder="Ej: juan.perez@universidad.edu"
+                  className="h-11"
+                />
+                <p className="text-xs text-muted-foreground">Se usará para notificaciones del sistema</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="create-phone">Número de celular</Label>
+                <Input
+                  id="create-phone"
+                  type="tel"
+                  value={newStudent.phone}
+                  onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
+                  placeholder="Ej: 3001234567"
+                  className="h-11"
                 />
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="create-code">Código estudiantil</Label>
+                  <Input
+                    id="create-code"
+                    value={newStudent.student_code}
+                    onChange={(e) => setNewStudent({ ...newStudent, student_code: e.target.value })}
+                    placeholder="Ej: 2024001"
+                    className="h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="create-program">Programa Académico</Label>
+                  <Select
+                    value={newStudent.program_id}
+                    onValueChange={(value) => setNewStudent({ ...newStudent, program_id: value })}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Selecciona programa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {programs.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => setStep("search")}>
-                Volver
+
+            <DialogFooter className="flex-col sm:flex-row gap-2 pt-4">
+              <Button variant="outline" onClick={() => setStep("search")} className="w-full sm:w-auto">
+                Cancelar
               </Button>
-              <Button onClick={createNewStudent} disabled={isProcessing}>
+              <Button onClick={createNewStudent} disabled={isProcessing} className="w-full sm:w-auto">
                 {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Crear y continuar
               </Button>

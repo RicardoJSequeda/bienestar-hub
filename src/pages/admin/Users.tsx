@@ -6,17 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Search, MoreVertical, Users, Shield, User, Loader2 } from "lucide-react";
+import { Search, MoreVertical, Users, Shield, User, Loader2, Pencil, Trash2, Phone } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface UserProfile {
-  id: string;
-  user_id: string;
+  id: string; // profile id
+  user_id: string; // auth user id
   full_name: string;
   email: string;
   student_code: string | null;
-  major: string | null;
+  phone: string | null;
   created_at: string;
   role: "admin" | "student";
   total_hours: number;
@@ -27,8 +30,33 @@ export default function AdminUsers() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Edit State
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  const [editForm, setEditForm] = useState({ full_name: "", student_code: "", phone: "" });
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Delete State
+  const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   useEffect(() => {
     fetchUsers();
+
+    // Realtime subscription for updates
+    const channel = supabase
+      .channel('admin-users-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        fetchUsers();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_roles' }, () => {
+        fetchUsers();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchUsers = async () => {
@@ -76,20 +104,81 @@ export default function AdminUsers() {
 
   const handleToggleRole = async (userProfile: UserProfile) => {
     const newRole = userProfile.role === "admin" ? "student" : "admin";
-    
+
+    // We strictly use upsert for role management to handle cases where no role exists yet
     const { error } = await supabase
       .from("user_roles")
-      .update({ role: newRole })
-      .eq("user_id", userProfile.user_id);
+      .upsert({ user_id: userProfile.user_id, role: newRole })
+      .select();
 
     if (error) {
       toast({ title: "Error", description: "No se pudo cambiar el rol", variant: "destructive" });
     } else {
       toast({ title: "Éxito", description: `Rol cambiado a ${newRole}` });
+      // UI update is handled by realtime or manual set
       setUsers(users.map((u) =>
         u.user_id === userProfile.user_id ? { ...u, role: newRole } : u
       ));
     }
+  };
+
+  const handleEditClick = (user: UserProfile) => {
+    setEditingUser(user);
+    setEditForm({
+      full_name: user.full_name || "",
+      student_code: user.student_code || "",
+      phone: user.phone || ""
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingUser) return;
+    setIsSaving(true);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: editForm.full_name,
+        student_code: editForm.student_code || null,
+        phone: editForm.phone || null
+      })
+      .eq("user_id", editingUser.user_id);
+
+    if (error) {
+      toast({ title: "Error", description: "Error al actualizar perfil", variant: "destructive" });
+    } else {
+      toast({ title: "Éxito", description: "Perfil actualizado correctamente" });
+      setIsEditDialogOpen(false);
+      // Optimistic update
+      setUsers(users.map(u => u.user_id === editingUser.user_id ? { ...u, ...editForm } : u));
+    }
+    setIsSaving(false);
+  };
+
+  const handleDeleteClick = (user: UserProfile) => {
+    setUserToDelete(user);
+  };
+
+  const confirmDelete = async () => {
+    if (!userToDelete) return;
+    setIsDeleting(true);
+
+    // Deleting from profiles. Requires RLS policy to allow deletion or admin role.
+    const { error } = await supabase
+      .from("profiles")
+      .delete()
+      .eq("user_id", userToDelete.user_id);
+
+    if (error) {
+      console.error(error);
+      toast({ title: "Error", description: "No se pudo eliminar el usuario. Puede tener registros relacionados.", variant: "destructive" });
+    } else {
+      toast({ title: "Eliminado", description: "Usuario eliminado correctamente" });
+      setUsers(users.filter(u => u.user_id !== userToDelete.user_id));
+    }
+    setIsDeleting(false);
+    setUserToDelete(null);
   };
 
   const filteredUsers = users.filter((u) =>
@@ -97,9 +186,6 @@ export default function AdminUsers() {
     u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.student_code?.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const admins = filteredUsers.filter((u) => u.role === "admin");
-  const students = filteredUsers.filter((u) => u.role === "student");
 
   return (
     <DashboardLayout>
@@ -138,7 +224,6 @@ export default function AdminUsers() {
                 <TableRow>
                   <TableHead>Usuario</TableHead>
                   <TableHead>Código</TableHead>
-                  <TableHead>Carrera</TableHead>
                   <TableHead>Horas</TableHead>
                   <TableHead>Rol</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -159,11 +244,16 @@ export default function AdminUsers() {
                         <div>
                           <p className="font-medium">{userProfile.full_name}</p>
                           <p className="text-sm text-muted-foreground">{userProfile.email}</p>
+                          {userProfile.phone && (
+                            <div className="flex items-center text-xs text-muted-foreground mt-0.5">
+                              <Phone className="w-3 h-3 mr-1" />
+                              {userProfile.phone}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>{userProfile.student_code || "-"}</TableCell>
-                    <TableCell>{userProfile.major || "-"}</TableCell>
                     <TableCell>
                       <span className="font-medium text-primary">
                         {userProfile.total_hours.toFixed(1)}h
@@ -182,9 +272,22 @@ export default function AdminUsers() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => handleEditClick(userProfile)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Editar
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleToggleRole(userProfile)}>
                             <Shield className="mr-2 h-4 w-4" />
-                            {userProfile.role === "admin" ? "Quitar rol admin" : "Hacer administrador"}
+                            {userProfile.role === "admin" ? "Quitar Admin" : "Hacer Admin"}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteClick(userProfile)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Eliminar
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -195,6 +298,70 @@ export default function AdminUsers() {
             </Table>
           </Card>
         )}
+
+        {/* Edit Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Usuario</DialogTitle>
+              <DialogDescription>
+                Modifica los datos del perfil de {editingUser?.full_name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="fullname">Nombre Completo</Label>
+                <Input
+                  id="fullname"
+                  value={editForm.full_name}
+                  onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="code">Código Estudiantil</Label>
+                <Input
+                  id="code"
+                  value={editForm.student_code}
+                  onChange={(e) => setEditForm({ ...editForm, student_code: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Celular</Label>
+                <Input
+                  id="phone"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSaveEdit} disabled={isSaving}>
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Guardar Cambios
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation */}
+        <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción eliminará permanentemente el perfil de <strong>{userToDelete?.full_name}</strong>.
+                Si tiene préstamos o registros vinculados, podría causar errores o bloquearse.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                {isDeleting ? "Eliminando..." : "Eliminar"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );

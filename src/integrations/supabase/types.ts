@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      academic_programs: {
+        Row: {
+          code: string | null
+          created_at: string
+          faculty: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          faculty?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          faculty?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       alerts: {
         Row: {
           created_at: string
@@ -92,6 +116,33 @@ export type Database = {
           old_data?: Json | null
           user_agent?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      campuses: {
+        Row: {
+          address: string | null
+          code: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          address?: string | null
+          code?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          address?: string | null
+          code?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
         }
         Relationships: []
       }
@@ -262,44 +313,30 @@ export type Database = {
         Row: {
           admin_notes: string | null
           approved_at: string | null
-          approved_by: string | null
-          auto_approved: boolean | null
           created_at: string
-          created_by_admin: boolean | null
-          damage_evidence_url: string | null
-          damage_notes: string | null
-          delivered_at: string | null
+          decision_source: Database["public"]["Enums"]["decision_source"]
           due_date: string | null
           id: string
-          pickup_deadline: string | null
-          queue_position: number | null
+          operator_id: string | null
           requested_at: string
           resource_id: string
           returned_at: string | null
           status: Database["public"]["Enums"]["loan_status"]
-          trust_score_at_request: number | null
           updated_at: string
           user_id: string
         }
         Insert: {
           admin_notes?: string | null
           approved_at?: string | null
-          approved_by?: string | null
-          auto_approved?: boolean | null
           created_at?: string
-          created_by_admin?: boolean | null
-          damage_evidence_url?: string | null
-          damage_notes?: string | null
-          delivered_at?: string | null
+          decision_source?: Database["public"]["Enums"]["decision_source"]
           due_date?: string | null
           id?: string
-          pickup_deadline?: string | null
-          queue_position?: number | null
+          operator_id?: string | null
           requested_at?: string
           resource_id: string
           returned_at?: string | null
           status?: Database["public"]["Enums"]["loan_status"]
-          trust_score_at_request?: number | null
           updated_at?: string
           user_id: string
         }
@@ -337,36 +374,58 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
+          campus_id: string | null
           created_at: string
           email: string
           full_name: string
           id: string
-          major: string | null
+          phone: string | null
+          program_id: string | null
           student_code: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          campus_id?: string | null
           created_at?: string
           email: string
           full_name: string
           id?: string
-          major?: string | null
+          phone?: string | null
+          program_id?: string | null
           student_code?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          campus_id?: string | null
           created_at?: string
           email?: string
           full_name?: string
           id?: string
-          major?: string | null
+          phone?: string | null
+          program_id?: string | null
           student_code?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "academic_programs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       resource_categories: {
         Row: {
@@ -376,9 +435,9 @@ export type Database = {
           hourly_factor: number
           icon: string | null
           id: string
+          image_url: string | null
           is_low_risk: boolean | null
           max_loan_days: number | null
-          max_per_student: number | null
           name: string
           requires_approval: boolean | null
         }
@@ -490,56 +549,43 @@ export type Database = {
           },
         ]
       }
-      student_scores: {
+      student_behavioral_status: {
         Row: {
-          blocked_reason: string | null
           blocked_until: string | null
-          created_at: string
-          damages: number
-          events_attended: number
-          id: string
-          is_blocked: boolean
-          late_returns: number
-          losses: number
-          on_time_returns: number
-          total_loans: number
-          trust_score: number
-          updated_at: string
+          created_at: string | null
+          is_blocked: boolean | null
+          last_intervention_at: string | null
+          trust_score: number | null
+          updated_at: string | null
           user_id: string
         }
         Insert: {
-          blocked_reason?: string | null
           blocked_until?: string | null
-          created_at?: string
-          damages?: number
-          events_attended?: number
-          id?: string
-          is_blocked?: boolean
-          late_returns?: number
-          losses?: number
-          on_time_returns?: number
-          total_loans?: number
-          trust_score?: number
-          updated_at?: string
+          created_at?: string | null
+          is_blocked?: boolean | null
+          last_intervention_at?: string | null
+          trust_score?: number | null
+          updated_at?: string | null
           user_id: string
         }
         Update: {
-          blocked_reason?: string | null
           blocked_until?: string | null
-          created_at?: string
-          damages?: number
-          events_attended?: number
-          id?: string
-          is_blocked?: boolean
-          late_returns?: number
-          losses?: number
-          on_time_returns?: number
-          total_loans?: number
-          trust_score?: number
-          updated_at?: string
+          created_at?: string | null
+          is_blocked?: boolean | null
+          last_intervention_at?: string | null
+          trust_score?: number | null
+          updated_at?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "student_behavioral_status_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       system_settings: {
         Row: {
@@ -645,24 +691,24 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "student"
+      app_role: "admin" | "coordinator" | "manager" | "monitor" | "student"
       loan_status:
-        | "pending"
-        | "approved"
-        | "rejected"
-        | "active"
-        | "returned"
-        | "overdue"
-        | "lost"
-        | "damaged"
-        | "expired"
-        | "queued"
+      | "pending"
+      | "approved"
+      | "active"
+      | "returned"
+      | "overdue"
+      | "lost"
+      | "damaged"
+      | "rejected"
+      | "expired"
       resource_status:
-        | "available"
-        | "borrowed"
-        | "maintenance"
-        | "reserved"
-        | "retired"
+      | "available"
+      | "borrowed"
+      | "maintenance"
+      | "reserved"
+      | "retired"
+      decision_source: "automatic" | "human" | "exception"
       wellness_source_type: "loan" | "event"
     }
     CompositeTypes: {
@@ -677,132 +723,131 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-    ? R
-    : never
+  ? R
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
-    : never
+    DefaultSchema["Views"])
+  ? (DefaultSchema["Tables"] &
+    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+      Row: infer R
+    }
+  ? R
+  : never
+  : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
-    }
-    ? I
-    : never
+    Insert: infer I
+  }
+  ? I
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
-    : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Insert: infer I
+  }
+  ? I
+  : never
+  : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
-    }
-    ? U
-    : never
+    Update: infer U
+  }
+  ? U
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
-    : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Update: infer U
+  }
+  ? U
+  : never
+  : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Enums"]
+  | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+  : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+  : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["CompositeTypes"]
+  | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+  : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  : never
 
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "student"],
+      app_role: ["admin", "coordinator", "manager", "monitor", "student"],
       loan_status: [
         "pending",
         "approved",
-        "rejected",
         "active",
         "returned",
         "overdue",
         "lost",
         "damaged",
+        "rejected",
         "expired",
-        "queued",
       ],
       resource_status: [
         "available",
@@ -811,7 +856,7 @@ export const Constants = {
         "reserved",
         "retired",
       ],
-      wellness_source_type: ["loan", "event"],
+      decision_source: ["automatic", "human", "exception"],
     },
   },
 } as const

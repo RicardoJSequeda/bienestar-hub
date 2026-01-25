@@ -14,6 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from "@/hooks/use-toast";
 import { Plus, MoreVertical, Pencil, Trash2, Settings, Package, Calendar, Loader2, Cog, ShieldCheck } from "lucide-react";
 import { SystemSettingsPanel } from "@/components/settings/SystemSettingsPanel";
+import { ImageUpload } from "@/components/ui/ImageUpload";
 import { Badge } from "@/components/ui/badge";
 
 interface ResourceCategory {
@@ -21,6 +22,7 @@ interface ResourceCategory {
   name: string;
   description: string | null;
   icon: string | null;
+  image_url?: string | null;
   base_wellness_hours: number;
   hourly_factor: number;
   is_low_risk: boolean | null;
@@ -34,13 +36,14 @@ interface EventCategory {
   name: string;
   description: string | null;
   icon: string | null;
+  image_url?: string | null;
 }
 
 export default function AdminSettings() {
   const [resourceCategories, setResourceCategories] = useState<ResourceCategory[]>([]);
   const [eventCategories, setEventCategories] = useState<EventCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Dialog state
   const [dialogType, setDialogType] = useState<"resource" | "event" | null>(null);
   const [editingItem, setEditingItem] = useState<ResourceCategory | EventCategory | null>(null);
@@ -50,6 +53,7 @@ export default function AdminSettings() {
     name: "",
     description: "",
     icon: "",
+    image_url: "",
     base_wellness_hours: "1",
     hourly_factor: "0.5",
     is_low_risk: true,
@@ -82,6 +86,7 @@ export default function AdminSettings() {
         name: item.name,
         description: item.description || "",
         icon: item.icon || "",
+        image_url: item.image_url || "",
         base_wellness_hours: resourceItem.base_wellness_hours?.toString() || "1",
         hourly_factor: resourceItem.hourly_factor?.toString() || "0.5",
         is_low_risk: resourceItem.is_low_risk ?? true,
@@ -95,6 +100,7 @@ export default function AdminSettings() {
         name: "",
         description: "",
         icon: "",
+        image_url: "",
         base_wellness_hours: "1",
         hourly_factor: "0.5",
         is_low_risk: true,
@@ -113,11 +119,12 @@ export default function AdminSettings() {
 
     setIsSaving(true);
     const table = dialogType === "resource" ? "resource_categories" : "event_categories";
-    
+
     const categoryData: any = {
       name: formData.name.trim(),
       description: formData.description.trim() || null,
       icon: formData.icon.trim() || null,
+      image_url: formData.image_url || null,
     };
 
     if (dialogType === "resource") {
@@ -361,7 +368,6 @@ export default function AdminSettings() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="icon">Icono (emoji o texto)</Label>
                 <Input
                   id="icon"
                   value={formData.icon}
@@ -369,6 +375,12 @@ export default function AdminSettings() {
                   placeholder="🎮 o games"
                 />
               </div>
+              <ImageUpload
+                value={formData.image_url}
+                onChange={(url) => setFormData({ ...formData, image_url: url })}
+                bucket="category-images"
+                label="Imagen de la Categoría"
+              />
               {dialogType === "resource" && (
                 <>
                   <div className="grid grid-cols-2 gap-4">

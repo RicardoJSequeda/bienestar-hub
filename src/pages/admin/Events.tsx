@@ -18,6 +18,7 @@ import { toast } from "@/hooks/use-toast";
 import { Plus, Search, MoreVertical, Pencil, Trash2, Calendar, Users, Loader2, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { ImageUpload } from "@/components/ui/ImageUpload";
 
 interface Event {
   id: string;
@@ -56,7 +57,7 @@ export default function AdminEvents() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   // Attendance dialog
   const [attendanceEvent, setAttendanceEvent] = useState<Event | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
@@ -81,33 +82,43 @@ export default function AdminEvents() {
   }, []);
 
   const fetchEvents = async () => {
-    const { data: eventsData, error } = await supabase
-      .from("events")
-      .select(`*, event_categories (id, name)`)
-      .order("start_date", { ascending: false });
+    try {
+      const { data: eventsData, error } = await supabase
+        .from("events")
+        .select(`*, event_categories (id, name)`)
+        .order("start_date", { ascending: false });
 
-    if (error) {
-      console.error("Error fetching events:", error);
-      return;
+      if (error) {
+        console.error("Error fetching events:", error);
+        toast({ title: "Error", description: "No se pudieron cargar los eventos", variant: "destructive" });
+        return;
+      }
+
+      // Fetch enrollment counts more efficiently using a single query grouping by event_id
+      const { data: enrollmentCounts, error: countError } = await supabase
+        .from("event_enrollments")
+        .select("event_id");
+
+      if (countError) {
+        console.error("Error fetching enrollment counts:", countError);
+      }
+
+      const countMap: Record<string, number> = {};
+      enrollmentCounts?.forEach((e) => {
+        countMap[e.event_id] = (countMap[e.event_id] || 0) + 1;
+      });
+
+      const eventsWithCounts = eventsData?.map((event) => ({
+        ...event,
+        enrollment_count: countMap[event.id] || 0,
+      }));
+
+      setEvents(eventsWithCounts as Event[]);
+    } catch (err) {
+      console.error("Unexpected error:", err);
+    } finally {
+      setIsLoading(false);
     }
-
-    // Fetch enrollment counts
-    const { data: enrollmentCounts } = await supabase
-      .from("event_enrollments")
-      .select("event_id");
-
-    const countMap: Record<string, number> = {};
-    enrollmentCounts?.forEach((e) => {
-      countMap[e.event_id] = (countMap[e.event_id] || 0) + 1;
-    });
-
-    const eventsWithCounts = eventsData?.map((event) => ({
-      ...event,
-      enrollment_count: countMap[event.id] || 0,
-    }));
-
-    setEvents(eventsWithCounts as Event[]);
-    setIsLoading(false);
   };
 
   const fetchCategories = async () => {
@@ -475,15 +486,12 @@ export default function AdminEvents() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="image_url">URL de Imagen</Label>
-                <Input
-                  id="image_url"
-                  value={formData.image_url}
-                  onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                  placeholder="https://..."
-                />
-              </div>
+              <ImageUpload
+                value={formData.image_url}
+                onChange={(url) => setFormData({ ...formData, image_url: url })}
+                bucket="event-images"
+                label="Imagen del Evento"
+              />
               <div className="flex items-center gap-2">
                 <Switch
                   id="is_active"

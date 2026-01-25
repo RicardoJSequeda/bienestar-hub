@@ -2,17 +2,18 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Search, Package, Clock, CheckCircle, XCircle, Loader2, SlidersHorizontal, Zap, Users, AlertCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Search, Package, Clock, CheckCircle, XCircle, Loader2, Zap, Users, AlertCircle, ShoppingCart } from "lucide-react";
 import { useSystemSettings } from "@/hooks/use-system-settings";
 import { LoanStatusBadge } from "@/components/loans/LoanStatusBadge";
+import { CardSkeleton, ListSkeleton } from "@/components/ui/skeleton-loaders";
+import { EmptySearch } from "@/components/ui/empty-states";
+import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 
 interface Resource {
   id: string;
@@ -37,6 +38,7 @@ interface Category {
   id: string;
   name: string;
   icon: string | null;
+  image_url?: string | null;
 }
 
 interface QueuePosition {
@@ -59,7 +61,6 @@ export default function StudentResources() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [isRequesting, setIsRequesting] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
   const [queuePositions, setQueuePositions] = useState<QueuePosition[]>([]);
   const [activeLoans, setActiveLoans] = useState<ActiveLoan[]>([]);
   const [userActiveLoansCount, setUserActiveLoansCount] = useState(0);
@@ -74,6 +75,7 @@ export default function StudentResources() {
       fetchUserData();
     }
   }, [profile?.user_id]);
+
 
   const fetchResources = async () => {
     const { data, error } = await supabase
@@ -106,9 +108,9 @@ export default function StudentResources() {
   const fetchCategories = async () => {
     const { data } = await supabase
       .from("resource_categories")
-      .select("id, name, icon")
+      .select("id, name, icon, image_url")
       .order("name");
-    
+
     if (data) setCategories(data);
   };
 
@@ -136,6 +138,11 @@ export default function StudentResources() {
       setUserActiveLoansCount(loansData.length);
     }
   };
+
+  // Realtime Subscriptions
+  useRealtimeSubscription("resources", fetchResources);
+  useRealtimeSubscription("resource_queue", fetchUserData, `user_id=eq.${profile?.user_id}`);
+  useRealtimeSubscription("loans", fetchUserData, `user_id=eq.${profile?.user_id}`);
 
   const handleRequestLoan = async () => {
     if (!selectedResource || !profile?.user_id) return;
@@ -210,8 +217,8 @@ export default function StudentResources() {
     }
 
     // Check if auto-approve is possible
-    const canAutoApprove = 
-      settings.auto_approve_low_risk && 
+    const canAutoApprove =
+      settings.auto_approve_low_risk &&
       selectedResource.resource_categories?.is_low_risk &&
       !selectedResource.resource_categories?.requires_approval;
 
@@ -228,7 +235,7 @@ export default function StudentResources() {
       user_id: profile.user_id,
       resource_id: selectedResource.id,
       status: willAutoApprove ? "approved" : "pending",
-      auto_approved: willAutoApprove,
+      decision_source: willAutoApprove ? "automatic" : "human",
     };
 
     if (willAutoApprove) {
@@ -255,11 +262,11 @@ export default function StudentResources() {
 
       toast({
         title: willAutoApprove ? "¡Préstamo aprobado!" : "Solicitud enviada",
-        description: willAutoApprove 
+        description: willAutoApprove
           ? "Tu préstamo ha sido aprobado automáticamente. Dirígete a recogerlo."
           : "Tu solicitud está pendiente de aprobación.",
       });
-      
+
       await fetchUserData();
       await fetchResources();
       setSelectedResource(null);
@@ -299,7 +306,7 @@ export default function StudentResources() {
 
     if (queuePos) {
       return (
-        <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/20">
+        <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/20 backdrop-blur-md">
           <Users className="w-3 h-3 mr-1" />
           Cola #{queuePos.position}
         </Badge>
@@ -309,7 +316,7 @@ export default function StudentResources() {
     switch (resource.status) {
       case "available":
         return (
-          <Badge className="bg-success/10 text-success border-success/20 hover:bg-success/20">
+          <Badge className="bg-success/90 backdrop-blur-md text-white border-0 shadow-sm">
             <CheckCircle className="w-3 h-3 mr-1" />
             Disponible
           </Badge>
@@ -317,14 +324,14 @@ export default function StudentResources() {
       case "borrowed":
       case "reserved":
         return (
-          <Badge variant="secondary" className="bg-muted">
+          <Badge variant="secondary" className="bg-muted/90 backdrop-blur-md border border-white/10">
             <Clock className="w-3 h-3 mr-1" />
             {resource.status === "reserved" ? "Reservado" : "Prestado"}
           </Badge>
         );
       case "maintenance":
         return (
-          <Badge variant="destructive" className="bg-destructive/10 text-destructive border-destructive/20">
+          <Badge variant="destructive" className="bg-destructive/90 backdrop-blur-md border border-white/10">
             <XCircle className="w-3 h-3 mr-1" />
             Mantenimiento
           </Badge>
@@ -334,217 +341,114 @@ export default function StudentResources() {
     }
   };
 
-  const getActionButton = (resource: Resource) => {
-    const queuePos = queuePositions.find(q => q.resource_id === resource.id);
-    const activeLoan = activeLoans.find(l => l.resource_id === resource.id);
-
-    if (activeLoan) {
-      return (
-        <Button className="w-full" disabled variant="outline">
-          {activeLoan.status === "pending" ? "Pendiente aprobación" : 
-           activeLoan.status === "approved" ? "Listo para recoger" : "Préstamo activo"}
-        </Button>
-      );
-    }
-
-    if (queuePos) {
-      return (
-        <Button 
-          className="w-full" 
-          variant="outline"
-          onClick={(e) => {
-            e.stopPropagation();
-            leaveQueue(resource.id);
-          }}
-        >
-          Salir de la cola
-        </Button>
-      );
-    }
-
-    if (resource.status === "available") {
-      return (
-        <Button className="w-full touch-target" onClick={() => setSelectedResource(resource)}>
-          Solicitar Préstamo
-        </Button>
-      );
-    }
-
-    if (settings.enable_queue_system && (resource.status === "borrowed" || resource.status === "reserved")) {
-      return (
-        <Button 
-          className="w-full touch-target" 
-          variant="outline"
-          onClick={() => setSelectedResource(resource)}
-        >
-          <Users className="mr-2 h-4 w-4" />
-          Unirse a la cola
-        </Button>
-      );
-    }
-
-    return (
-      <Button className="w-full" disabled>
-        No Disponible
-      </Button>
-    );
-  };
-
   return (
     <DashboardLayout>
-      <div className="space-y-4 md:space-y-6">
-        {/* Header - Hidden on mobile */}
-        <div className="hidden md:block">
-          <h1 className="text-2xl font-bold text-foreground">Catálogo de Recursos</h1>
-          <p className="text-muted-foreground">
-            Explora y solicita préstamos de recursos de bienestar
-          </p>
+      <div className="space-y-6 animate-fade-in">
+        {/* Header with Search */}
+        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Catálogo de Recursos</h1>
+            <p className="text-muted-foreground">Explora y solicita equipamiento universitario</p>
+          </div>
+          <div className="relative w-full md:w-96">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar libros, laptops..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 h-12 rounded-full bg-background border shadow-sm focus-visible:ring-primary"
+            />
+          </div>
         </div>
 
         {/* Loan limit warning */}
         {userActiveLoansCount >= settings.max_active_loans && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>Has alcanzado el límite de {settings.max_active_loans} préstamos activos</span>
+          <div className="flex items-center gap-2 p-4 rounded-xl bg-destructive/5 text-destructive border border-destructive/10 animate-shake">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <span className="font-medium">Has alcanzado el límite de {settings.max_active_loans} préstamos activos. Devuelve un recurso para solicitar otro.</span>
           </div>
         )}
 
-        {/* Search and Filters */}
-        <div className="space-y-3">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar recursos..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+        {/* Categories Pills */}
+        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+          <Button
+            variant={selectedCategory === 'all' ? 'default' : 'outline'}
+            className="rounded-full px-6"
+            onClick={() => setSelectedCategory('all')}
+          >
+            Todos
+          </Button>
+          {categories.map(cat => (
             <Button
-              variant="outline"
-              size="icon"
-              className="shrink-0 md:hidden"
-              onClick={() => setShowFilters(!showFilters)}
+              key={cat.id}
+              variant={selectedCategory === cat.id ? 'default' : 'outline'}
+              className="rounded-full px-6 whitespace-nowrap"
+              onClick={() => setSelectedCategory(cat.id)}
             >
-              <SlidersHorizontal className="h-4 w-4" />
+              {cat.name}
             </Button>
-            <div className="hidden md:block">
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Categoría" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Mobile Filter Pills */}
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 md:hidden">
-            <button
-              onClick={() => setSelectedCategory("all")}
-              className={cn(
-                "px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors",
-                "touch-target active-scale",
-                selectedCategory === "all"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
-              )}
-            >
-              Todas
-            </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={cn(
-                  "px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors",
-                  "touch-target active-scale",
-                  selectedCategory === cat.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
-                )}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
+          ))}
         </div>
 
-        {/* Resources Grid */}
+        {/* Grid */}
         {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
           </div>
         ) : filteredResources.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Package className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No se encontraron recursos</p>
-            </CardContent>
-          </Card>
+          <EmptySearch />
         ) : (
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredResources.map((resource) => (
-              <Card key={resource.id} className="overflow-hidden hover:shadow-lg transition-all duration-300 card-touch group">
-                {/* Image */}
-                <div className="aspect-[4/3] bg-gradient-to-br from-muted to-muted/50 relative overflow-hidden">
+              <Card key={resource.id} className="group overflow-hidden border-0 shadow-sm hover:shadow-xl transition-all duration-300">
+                {/* Image Container */}
+                <div className="relative aspect-square overflow-hidden bg-muted">
                   {resource.image_url ? (
                     <img
                       src={resource.image_url}
                       alt={resource.name}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                   ) : (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Package className="h-12 w-12 text-muted-foreground/50" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-accent/5 text-accent/20">
+                      <Package className="h-16 w-16" />
                     </div>
                   )}
-                  {/* Status overlay */}
-                  <div className="absolute top-3 right-3">
+
+                  {/* Badges Overlay */}
+                  <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
                     {getStatusBadge(resource)}
-                  </div>
-                  {/* Auto-approve indicator */}
-                  {resource.resource_categories?.is_low_risk && !resource.resource_categories?.requires_approval && (
-                    <div className="absolute top-3 left-3">
-                      <Badge variant="secondary" className="bg-success/90 text-white text-xs">
-                        <Zap className="w-3 h-3 mr-0.5" />
-                        Aprobación rápida
+                    {resource.resource_categories?.is_low_risk && !resource.resource_categories?.requires_approval && (
+                      <Badge variant="secondary" className="bg-background/80 backdrop-blur text-xs font-bold border-0 shadow-sm">
+                        <Zap className="w-3 h-3 mr-1 text-yellow-500 fill-yellow-500" />
+                        Instantáneo
                       </Badge>
-                    </div>
-                  )}
+                    )}
+                  </div>
+
+                  <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+                    <Button className="w-full rounded-full bg-white text-black hover:bg-white/90 font-bold" onClick={() => setSelectedResource(resource)}>
+                      Ver Detalle
+                    </Button>
+                  </div>
                 </div>
-                
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base line-clamp-1">{resource.name}</CardTitle>
-                  {resource.resource_categories && (
-                    <Badge variant="outline" className="w-fit text-xs">
-                      {resource.resource_categories.name}
-                    </Badge>
-                  )}
-                </CardHeader>
-                
-                <CardContent className="space-y-3">
-                  <CardDescription className="line-clamp-2 text-sm min-h-[40px]">
-                    {resource.description || "Sin descripción"}
-                  </CardDescription>
-                  
-                  {resource.resource_categories && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="flex items-center gap-1.5 text-primary font-medium">
-                        <Clock className="h-4 w-4" />
-                        <span>{resource.resource_categories.base_wellness_hours}h</span>
-                      </div>
-                      <span className="text-muted-foreground text-xs">de bienestar</span>
-                    </div>
-                  )}
-                  
-                  {getActionButton(resource)}
+
+                <CardContent className="p-4">
+                  <div className="mb-2">
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                      {resource.resource_categories?.name}
+                    </p>
+                    <h3 className="font-bold text-lg leading-tight line-clamp-1 group-hover:text-primary transition-colors">
+                      {resource.name}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock className="w-4 h-4" />
+                    <span>{resource.resource_categories?.base_wellness_hours}h crédito</span>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -553,82 +457,70 @@ export default function StudentResources() {
 
         {/* Request Dialog */}
         <Dialog open={!!selectedResource} onOpenChange={() => setSelectedResource(null)}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                {selectedResource?.status === "available" ? "Solicitar Préstamo" : "Unirse a la cola"}
+          <DialogContent className="sm:max-w-md overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-primary/20 to-accent/20 -z-10" />
+            <DialogHeader className="pt-8">
+              <div className="mx-auto bg-background rounded-full p-4 shadow-lg mb-4">
+                {selectedResource?.image_url ? (
+                  <img src={selectedResource.image_url} className="w-16 h-16 rounded-full object-cover" />
+                ) : (
+                  <Package className="w-16 h-16 text-primary" />
+                )}
+              </div>
+              <DialogTitle className="text-center text-2xl">
+                {selectedResource?.name}
               </DialogTitle>
-              <DialogDescription>
-                {selectedResource?.status === "available" 
-                  ? `¿Deseas solicitar el préstamo de "${selectedResource?.name}"?`
-                  : `Este recurso no está disponible. ¿Deseas unirte a la cola de espera?`
-                }
+              <DialogDescription className="text-center px-4">
+                {selectedResource?.description || "Sin descripción disponible."}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+
+            <div className="space-y-4 py-2 px-4">
               {selectedResource?.status === "available" ? (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedResource?.resource_categories?.is_low_risk && !selectedResource?.resource_categories?.requires_approval
-                      ? "Este recurso califica para aprobación automática. ¡Recibirás confirmación inmediata!"
-                      : "Tu solicitud será revisada por un administrador. Recibirás una notificación cuando sea aprobada o rechazada."
-                    }
-                  </p>
-                  {selectedResource?.resource_categories && (
-                    <div className="rounded-xl bg-primary/5 border border-primary/10 p-4">
-                      <p className="text-sm font-medium text-muted-foreground">Horas de bienestar estimadas:</p>
-                      <p className="text-3xl font-bold text-primary">
-                        {selectedResource.resource_categories.base_wellness_hours} horas
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        + {selectedResource.resource_categories.hourly_factor} por hora de uso
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Préstamo máximo: {selectedResource.resource_categories.max_loan_days} días
-                      </p>
+                <div className="rounded-xl bg-muted/50 p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Crédito Bienestar</span>
+                    <span className="font-bold">{selectedResource.resource_categories?.base_wellness_hours} Horas</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Tiempo Máximo</span>
+                    <span className="font-bold">{selectedResource.resource_categories?.max_loan_days} Días</span>
+                  </div>
+                  {selectedResource.resource_categories?.is_low_risk && (
+                    <div className="pt-2 flex items-center gap-2 text-xs text-green-600 font-medium">
+                      <Zap className="w-4 h-4 fill-current" />
+                      <span>Aprobación automática disponible</span>
                     </div>
                   )}
-                </>
+                </div>
               ) : (
-                <div className="rounded-xl bg-purple-500/5 border border-purple-500/10 p-4">
-                  <div className="flex items-center gap-2 text-purple-600 mb-2">
-                    <Users className="h-5 w-5" />
-                    <span className="font-medium">Cola de espera</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Te notificaremos cuando este recurso esté disponible. Serás el siguiente en la fila.
-                  </p>
+                <div className="rounded-xl bg-orange-500/10 text-orange-700 p-4 text-center text-sm font-medium">
+                  Este recurso no está disponible. ¿Deseas unirte a la lista de espera?
                 </div>
               )}
             </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => setSelectedResource(null)} className="w-full sm:w-auto">
+
+            <DialogFooter className="px-4 pb-4 sm:justify-between gap-2">
+              <Button variant="ghost" onClick={() => setSelectedResource(null)}>
                 Cancelar
               </Button>
-              <Button 
-                onClick={handleRequestLoan} 
-                disabled={isRequesting || userActiveLoansCount >= settings.max_active_loans} 
-                className="w-full sm:w-auto"
+              <Button
+                onClick={handleRequestLoan}
+                disabled={isRequesting || userActiveLoansCount >= settings.max_active_loans}
+                className="flex-1 rounded-full"
               >
                 {isRequesting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Enviando...
+                    Procesando...
                   </>
                 ) : selectedResource?.status === "available" ? (
-                  selectedResource?.resource_categories?.is_low_risk ? (
-                    <>
-                      <Zap className="mr-2 h-4 w-4" />
-                      Confirmar Solicitud
-                    </>
-                  ) : (
-                    "Confirmar Solicitud"
-                  )
-                ) : (
                   <>
-                    <Users className="mr-2 h-4 w-4" />
-                    Unirse a la cola
+                    <ShoppingCart className="mr-2 h-4 w-4" />
+                    Solicitar Préstamo
                   </>
+                ) : (
+                  "Unirse a la Cola"
                 )}
               </Button>
             </DialogFooter>

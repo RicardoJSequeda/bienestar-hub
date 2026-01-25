@@ -143,12 +143,12 @@ export function AppSidebar() {
             </div>
           </div>
           <div className="mt-3 flex items-center gap-2">
-            <Badge 
-              variant="outline" 
+            <Badge
+              variant="outline"
               className={cn(
                 "text-xs font-medium border-0",
-                isAdmin 
-                  ? "bg-accent/20 text-accent" 
+                isAdmin
+                  ? "bg-accent/20 text-accent"
                   : "bg-sidebar-primary/20 text-sidebar-primary"
               )}
             >
@@ -157,6 +157,16 @@ export function AppSidebar() {
             </Badge>
           </div>
         </div>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate("/profile")}
+          className="w-full justify-start h-10 mb-1 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+        >
+          <Settings className="mr-2 h-4 w-4" />
+          Mi Perfil
+        </Button>
 
         <Button
           variant="ghost"

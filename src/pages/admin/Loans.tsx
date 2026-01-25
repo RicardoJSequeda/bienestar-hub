@@ -23,9 +23,10 @@ import { useSystemSettings } from "@/hooks/use-system-settings";
 
 interface Loan {
   id: string;
-  status: "pending" | "approved" | "rejected" | "active" | "returned" | "overdue" | "lost" | "damaged" | "expired" | "queued";
+  status: "pending" | "approved" | "rejected" | "active" | "returned" | "overdue" | "lost" | "damaged" | "expired";
   requested_at: string;
   approved_at: string | null;
+  approved_by: string | null;
   delivered_at: string | null;
   returned_at: string | null;
   due_date: string | null;
@@ -34,7 +35,7 @@ interface Loan {
   damage_notes: string | null;
   user_id: string;
   resource_id: string;
-  auto_approved: boolean;
+  decision_source: "automatic" | "human" | "exception";
   trust_score_at_request: number | null;
   created_by_admin: boolean;
   profiles: { full_name: string; email: string; student_code: string | null };
@@ -50,7 +51,7 @@ interface Loan {
   };
 }
 
-interface StudentScore {
+interface StudentBehavioralStatus {
   trust_score: number;
   is_blocked: boolean;
 }
@@ -61,7 +62,7 @@ export default function AdminLoans() {
   const { user } = useAuth();
   const { settings } = useSystemSettings();
   const [loans, setLoans] = useState<Loan[]>([]);
-  const [studentScores, setStudentScores] = useState<Record<string, StudentScore>>({});
+  const [studentStatuses, setStudentStatuses] = useState<Record<string, StudentBehavioralStatus>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
@@ -76,14 +77,34 @@ export default function AdminLoans() {
 
   useEffect(() => {
     fetchLoans();
+
+    // Realtime subscription
+    const channel = supabase
+      .channel('admin-loans-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'loans'
+        },
+        () => {
+          fetchLoans();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchLoans = async () => {
+    // 1. Fetch loans without profiles embedding (to avoid 400 error)
     const { data, error } = await supabase
       .from("loans")
       .select(`
         *,
-        profiles:user_id (full_name, email, student_code),
         resources:resource_id (
           id,
           name,
@@ -95,25 +116,46 @@ export default function AdminLoans() {
 
     if (error) {
       console.error("Error fetching loans:", error);
+      toast({ title: "Error", description: "No se pudieron cargar los préstamos", variant: "destructive" });
     } else {
-      const loansData = data as unknown as Loan[];
-      setLoans(loansData);
-      
-      // Fetch scores for all unique users
+      let loansData = data as unknown as Loan[];
+
+      // 2. Custom fetch for profiles since there is no FK
       const userIds = [...new Set(loansData.map(l => l.user_id))];
+
       if (userIds.length > 0) {
+        // Fetch profiles
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, email, student_code")
+          .in("user_id", userIds);
+
+        const profileMap = new Map();
+        profiles?.forEach(p => profileMap.set(p.user_id, p));
+
+        // Merge profiles manually
+        loansData = loansData.map(loan => ({
+          ...loan,
+          profiles: profileMap.get(loan.user_id) || { full_name: 'Usuario Desconocido', email: 'N/A', student_code: null }
+        }));
+
+        setLoans(loansData);
+
+        // Fetch scores (keep existing logic)
         const { data: scores } = await supabase
-          .from("student_scores")
+          .from("student_behavioral_status")
           .select("user_id, trust_score, is_blocked")
           .in("user_id", userIds);
-        
+
         if (scores) {
-          const scoreMap: Record<string, StudentScore> = {};
+          const scoreMap: Record<string, StudentBehavioralStatus> = {};
           scores.forEach(s => {
             scoreMap[s.user_id] = { trust_score: s.trust_score, is_blocked: s.is_blocked };
           });
-          setStudentScores(scoreMap);
+          setStudentStatuses(scoreMap);
         }
+      } else {
+        setLoans(loansData);
       }
     }
     setIsLoading(false);
@@ -210,7 +252,7 @@ export default function AdminLoans() {
         hours: Math.round(totalHours * 10) / 10,
         source_type: "loan",
         source_id: selectedLoan.id,
-        description: penaltyHours < 0 
+        description: penaltyHours < 0
           ? `Penalización: ${selectedLoan.resources.name} (${newStatus})`
           : `Préstamo: ${selectedLoan.resources.name}`,
         awarded_by: user.id,
@@ -300,7 +342,7 @@ export default function AdminLoans() {
   ];
 
   const LoanCard = ({ loan }: { loan: Loan }) => {
-    const score = studentScores[loan.user_id];
+    const score = studentStatuses[loan.user_id];
     const isOverdue = loan.status === "active" && loan.due_date && new Date(loan.due_date) < new Date();
 
     return (
@@ -318,7 +360,7 @@ export default function AdminLoans() {
                 <Package className="h-8 w-8 text-muted-foreground" />
               </div>
             )}
-            {loan.auto_approved && (
+            {loan.decision_source === "automatic" && (
               <div className="absolute top-2 left-2">
                 <Badge variant="secondary" className="bg-success/10 text-success text-xs">
                   <Zap className="w-3 h-3 mr-0.5" />
@@ -334,7 +376,7 @@ export default function AdminLoans() {
               </div>
             )}
           </div>
-          
+
           {/* Content */}
           <div className="flex-1 p-4 space-y-3">
             {/* Header */}
@@ -369,16 +411,16 @@ export default function AdminLoans() {
 
             {/* Actions */}
             <div className="flex flex-wrap gap-2 pt-2">
-              <Button 
-                size="sm" 
-                variant="ghost" 
+              <Button
+                size="sm"
+                variant="ghost"
                 onClick={() => setShowTimelineFor(loan)}
                 className="text-xs"
               >
                 <Clock className="mr-1 h-3 w-3" />
                 Ver timeline
               </Button>
-              
+
               {loan.status === "pending" && (
                 <>
                   <Button size="sm" onClick={() => openActionDialog(loan, "approve")} className="flex-1 sm:flex-none">
@@ -540,7 +582,7 @@ export default function AdminLoans() {
                   />
                 </div>
               )}
-              
+
               {actionType === "return" && selectedLoan?.resources?.resource_categories && (
                 <div className="rounded-xl bg-primary/5 border border-primary/10 p-4">
                   <p className="text-sm font-medium text-muted-foreground">Horas de bienestar a otorgar:</p>

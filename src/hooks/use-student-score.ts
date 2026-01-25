@@ -30,7 +30,7 @@ export function useStudentScore(userId?: string) {
 
   const fetchScore = async (uid: string) => {
     const { data, error } = await supabase
-      .from("student_scores")
+      .from("student_behavioral_status")
       .select("*")
       .eq("user_id", uid)
       .maybeSingle();
@@ -38,7 +38,7 @@ export function useStudentScore(userId?: string) {
     if (error) {
       console.error("Error fetching score:", error);
     } else {
-      setScore(data);
+      setScore(data as any);
     }
     setIsLoading(false);
   };
@@ -62,11 +62,11 @@ export function useStudentScore(userId?: string) {
     return { level: "low", label: "Bajo", color: "text-destructive" };
   };
 
-  return { 
-    score, 
-    isLoading, 
-    calculateScore, 
+  return {
+    score,
+    isLoading,
+    calculateScore,
     getScoreLevel,
-    refetch: () => userId && fetchScore(userId) 
+    refetch: () => userId && fetchScore(userId)
   };
 }

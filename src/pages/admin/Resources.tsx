@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Search, MoreVertical, Pencil, Trash2, Package, Loader2 } from "lucide-react";
+import { ImageUpload } from "@/components/ui/ImageUpload";
 
 interface Resource {
   id: string;
@@ -43,7 +44,7 @@ export default function AdminResources() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -346,15 +347,12 @@ export default function AdminResources() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="image_url">URL de Imagen</Label>
-                <Input
-                  id="image_url"
-                  value={formData.image_url}
-                  onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                  placeholder="https://..."
-                />
-              </div>
+              <ImageUpload
+                value={formData.image_url}
+                onChange={(url) => setFormData({ ...formData, image_url: url })}
+                bucket="resource-images"
+                label="Foto del Recurso"
+              />
               <div className="space-y-2">
                 <Label htmlFor="notes">Notas internas</Label>
                 <Textarea

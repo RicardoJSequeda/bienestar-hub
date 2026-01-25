@@ -10,6 +10,7 @@ import { Bell, Search, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { NotificationBell } from "./NotificationBell";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -66,16 +67,11 @@ export function DashboardLayout({ children, requireAdmin = false }: DashboardLay
               <ChevronLeft className="h-5 w-5" />
             </Button>
           )}
-          
+
           <h1 className="flex-1 text-lg font-semibold truncate">{currentTitle}</h1>
 
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-9 w-9 relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground flex items-center justify-center">
-                3
-              </span>
-            </Button>
+            <NotificationBell />
             <ThemeToggle />
           </div>
         </header>
@@ -102,7 +98,7 @@ export function DashboardLayout({ children, requireAdmin = false }: DashboardLay
           {/* Header */}
           <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6">
             <SidebarTrigger className="-ml-2" />
-            
+
             {/* Page Title */}
             <div className="flex-1">
               <h2 className="text-lg font-semibold">{currentTitle}</h2>
@@ -119,12 +115,7 @@ export function DashboardLayout({ children, requireAdmin = false }: DashboardLay
 
             {/* Actions */}
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="relative h-9 w-9">
-                <Bell className="h-4 w-4" />
-                <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground flex items-center justify-center">
-                  3
-                </span>
-              </Button>
+              <NotificationBell />
               <ThemeToggle />
             </div>
           </header>
