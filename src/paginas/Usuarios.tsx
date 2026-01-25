@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/servicios/cliente";
+import { useAuth } from "@/contextos/ContextoAutenticacion";
 import { DashboardLayout } from "@/componentes/diseno/DisenoTablero";
 import { Card, CardContent } from "@/componentes/ui/card";
 import { Button } from "@/componentes/ui/button";
@@ -10,6 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/componentes/ui/dialog";
 import { Label } from "@/componentes/ui/label";
 import { toast } from "@/ganchos/usar-toast";
+import { validarUsuarioEdicion } from "@/utilidades/validaciones";
 import { Search, MoreVertical, Users, Shield, User, Loader2, Pencil, Trash2, Phone } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/componentes/ui/alert-dialog";
 
@@ -26,6 +28,7 @@ interface UserProfile {
 }
 
 export default function AdminUsers() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -103,6 +106,13 @@ export default function AdminUsers() {
   };
 
   const handleToggleRole = async (userProfile: UserProfile) => {
+    if (currentUser?.id === userProfile.user_id) {
+      toast({ title: "Acción no permitida", description: "No puedes cambiar tu propio rol.", variant: "destructive" });
+      return;
+    }
+
+    if (!confirm(`¿Confirmas cambiar el rol de ${userProfile.full_name}?`)) return;
+
     const newRole = userProfile.role === "admin" ? "student" : "admin";
 
     // We strictly use upsert for role management to handle cases where no role exists yet
@@ -134,6 +144,16 @@ export default function AdminUsers() {
 
   const handleSaveEdit = async () => {
     if (!editingUser) return;
+    const validationError = validarUsuarioEdicion({
+      nombreCompleto: editForm.full_name,
+      codigoEstudiantil: editForm.student_code,
+      celular: editForm.phone,
+    });
+    if (validationError) {
+      toast({ title: "Error", description: validationError, variant: "destructive" });
+      return;
+    }
+
     setIsSaving(true);
 
     const { error } = await supabase
@@ -157,11 +177,20 @@ export default function AdminUsers() {
   };
 
   const handleDeleteClick = (user: UserProfile) => {
+    if (currentUser?.id === user.user_id) {
+      toast({ title: "Acción no permitida", description: "No puedes eliminar tu propio usuario.", variant: "destructive" });
+      return;
+    }
     setUserToDelete(user);
   };
 
   const confirmDelete = async () => {
     if (!userToDelete) return;
+    if (currentUser?.id === userToDelete.user_id) {
+      toast({ title: "Acción no permitida", description: "No puedes eliminar tu propio usuario.", variant: "destructive" });
+      setUserToDelete(null);
+      return;
+    }
     setIsDeleting(true);
 
     // Deleting from profiles. Requires RLS policy to allow deletion or admin role.

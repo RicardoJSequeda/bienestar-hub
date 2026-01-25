@@ -21,8 +21,9 @@ interface AuthContextType {
   profile: Profile | null;
   role: UserRole | null;
   isAdmin: boolean;
+  isEmailVerified: boolean;
   isLoading: boolean;
-  signUp: (data: {
+  signUp: (payload: {
     email: string;
     password: string;
     fullName: string;
@@ -30,8 +31,8 @@ interface AuthContextType {
     phone: string;
     campusId: string;
     programId: string;
-  }) => Promise<{ error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  }) => Promise<{ error: Error | null; user: User | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; user: User | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
@@ -82,6 +84,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (event, currentSession) => {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
+        setIsEmailVerified(Boolean(currentSession?.user?.email_confirmed_at));
+
+        if (event === "TOKEN_REFRESH_FAILED") {
+          localStorage.setItem("auth_expired", "1");
+        }
 
         if (currentSession?.user) {
           // Use setTimeout to avoid potential deadlocks
@@ -95,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setProfile(null);
           setRole(null);
+          setIsEmailVerified(false);
           setIsLoading(false);
         }
       }
@@ -110,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (data: {
+  const signUp = async (payload: {
     email: string;
     password: string;
     fullName: string;
@@ -119,29 +127,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     campusId: string;
     programId: string;
   }) => {
-    const { error } = await supabase.auth.signUp({
-      email: data.email,
-      password: data.password,
+    const { data: signUpData, error } = await supabase.auth.signUp({
+      email: payload.email,
+      password: payload.password,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: `${window.location.origin}/auth?verificado=1`,
         data: {
-          full_name: data.fullName,
-          student_code: data.studentCode,
-          phone: data.phone,
-          campus_id: data.campusId,
-          program_id: data.programId,
+          full_name: payload.fullName,
+          student_code: payload.studentCode,
+          phone: payload.phone,
+          campus_id: payload.campusId,
+          program_id: payload.programId,
         },
       },
     });
-    return { error };
+    return { error, user: signUpData?.user ?? null };
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    return { error };
+    return { error, user: data?.user ?? null };
   };
 
   const signOut = async () => {
@@ -160,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         role,
         isAdmin: role === "admin",
+        isEmailVerified,
         isLoading,
         signUp,
         signIn,

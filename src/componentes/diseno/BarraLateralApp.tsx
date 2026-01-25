@@ -25,7 +25,6 @@ import {
   BarChart3,
   Settings,
   LogOut,
-  GraduationCap,
   ChevronRight,
   Sparkles,
 } from "lucide-react";
@@ -74,15 +73,17 @@ export function AppSidebar() {
     <Sidebar className="border-r-0">
       <SidebarHeader className="p-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sidebar-primary shadow-glow-accent">
-            <GraduationCap className="h-6 w-6 text-sidebar-primary-foreground" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="Universidad Cooperativa de Colombia"
+            className="h-11 w-11 object-contain"
+          />
           <div className="flex flex-col">
             <span className="text-base font-bold text-sidebar-foreground tracking-tight">
-              Bienestar
+              Bienestar UCC
             </span>
             <span className="text-xs text-sidebar-foreground/60 font-medium">
-              Universitario
+              Universidad Cooperativa
             </span>
           </div>
         </div>

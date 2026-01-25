@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/componentes/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/componentes/ui/dropdown-menu";
 import { toast } from "@/ganchos/usar-toast";
+import { validarRecurso } from "@/utilidades/validaciones";
 import { Plus, Search, MoreVertical, Pencil, Trash2, Package, Loader2 } from "lucide-react";
 import { ImageUpload } from "@/componentes/ui/ImageUpload";
 
@@ -107,8 +108,13 @@ export default function AdminResources() {
   };
 
   const handleSave = async () => {
-    if (!formData.name.trim()) {
-      toast({ title: "Error", description: "El nombre es requerido", variant: "destructive" });
+    const validationError = validarRecurso({
+      nombre: formData.name,
+      categoriaId: formData.category_id || null,
+    });
+
+    if (validationError) {
+      toast({ title: "Error", description: validationError, variant: "destructive" });
       return;
     }
 

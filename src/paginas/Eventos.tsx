@@ -19,6 +19,7 @@ import { Plus, Search, MoreVertical, Pencil, Trash2, Calendar, Users, Loader2, E
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { ImageUpload } from "@/componentes/ui/ImageUpload";
+import { validarEvento } from "@/utilidades/validaciones";
 
 interface Event {
   id: string;
@@ -182,22 +183,35 @@ export default function AdminEvents() {
   };
 
   const handleSave = async () => {
-    if (!formData.title.trim() || !formData.start_date || !formData.end_date) {
-      toast({ title: "Error", description: "Completa los campos requeridos", variant: "destructive" });
+    const validationError = validarEvento({
+      titulo: formData.title,
+      inicio: formData.start_date,
+      fin: formData.end_date,
+      cupoMaximo: formData.max_participants,
+      horasBienestar: formData.wellness_hours,
+    });
+
+    if (validationError) {
+      toast({ title: "Error", description: validationError, variant: "destructive" });
       return;
     }
 
     setIsSaving(true);
 
+    const startDate = new Date(formData.start_date);
+    const endDate = new Date(formData.end_date);
+    const maxParticipants = formData.max_participants ? parseInt(formData.max_participants) : null;
+    const wellnessHours = parseFloat(formData.wellness_hours);
+
     const eventData = {
       title: formData.title.trim(),
       description: formData.description.trim() || null,
       image_url: formData.image_url.trim() || null,
-      start_date: new Date(formData.start_date).toISOString(),
-      end_date: new Date(formData.end_date).toISOString(),
+      start_date: startDate.toISOString(),
+      end_date: endDate.toISOString(),
       location: formData.location.trim() || null,
-      max_participants: formData.max_participants ? parseInt(formData.max_participants) : null,
-      wellness_hours: parseFloat(formData.wellness_hours) || 1,
+      max_participants: maxParticipants,
+      wellness_hours: wellnessHours,
       is_active: formData.is_active,
       category_id: formData.category_id || null,
       created_by: user?.id,
