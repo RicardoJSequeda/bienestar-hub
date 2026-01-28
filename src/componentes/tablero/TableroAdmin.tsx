@@ -102,8 +102,8 @@ export function AdminDashboard() {
             .select(`
               id,
               requested_at,
-              profiles:user_id(full_name),
-              resources:resource_id(name)
+              profiles!loans_user_id_fkey(full_name),
+              resources!loans_resource_id_fkey(name)
             `)
             .eq("status", "pending")
             .order("requested_at", { ascending: true })
@@ -356,7 +356,7 @@ export function AdminDashboard() {
       {/* Bottom Row - Alerts */}
       <div className="grid gap-6 lg:grid-cols-2">
         <AlertsPanel />
-        
+
         {/* System Overview */}
         <Card>
           <CardHeader>

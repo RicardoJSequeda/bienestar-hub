@@ -4,10 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/componentes/ui/badge";
 import { Progress } from "@/componentes/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/componentes/ui/tabs";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Clock, 
+import {
+  TrendingUp,
+  TrendingDown,
+  Clock,
   Calendar,
   BarChart3,
   Loader2,
@@ -91,7 +91,7 @@ export function DemandPrediction() {
         id,
         requested_at,
         resource_id,
-        resources:resource_id(name, category_id, resource_categories:category_id(name))
+        resources!demand_stats_resource_id_fkey(name, category_id, resource_categories!resources_category_id_fkey(name))
       `)
       .gte("requested_at", thirtyDaysAgo.toISOString());
 
@@ -101,9 +101,9 @@ export function DemandPrediction() {
     }
 
     // Analyze by resource
-    const resourceMap: Record<string, { 
-      name: string; 
-      category: string; 
+    const resourceMap: Record<string, {
+      name: string;
+      category: string;
       loans: Date[];
       hourCounts: number[];
       dayCounts: number[];
@@ -132,7 +132,7 @@ export function DemandPrediction() {
       resourceMap[resourceId].loans.push(date);
       resourceMap[resourceId].hourCounts[hour]++;
       resourceMap[resourceId].dayCounts[day]++;
-      
+
       globalHourCounts[hour]++;
       globalDayCounts[day]++;
 
@@ -151,7 +151,7 @@ export function DemandPrediction() {
       const midPoint = subDays(new Date(), 15);
       const recentLoans = data.loans.filter((d) => d >= midPoint).length;
       const olderLoans = data.loans.filter((d) => d < midPoint).length;
-      
+
       let trend: "up" | "down" | "stable" = "stable";
       if (recentLoans > olderLoans * 1.2) trend = "up";
       else if (recentLoans < olderLoans * 0.8) trend = "down";
@@ -362,8 +362,8 @@ export function DemandPrediction() {
                 <div className="space-y-3 w-full lg:w-1/2">
                   {categoryDistribution.map((cat, index) => (
                     <div key={cat.name} className="flex items-center gap-3">
-                      <div 
-                        className="h-3 w-3 rounded-full" 
+                      <div
+                        className="h-3 w-3 rounded-full"
                         style={{ backgroundColor: cat.color }}
                       />
                       <span className="flex-1 text-sm">{cat.name}</span>
@@ -416,8 +416,8 @@ export function DemandPrediction() {
                         pattern.predictedDemand === "high"
                           ? "destructive"
                           : pattern.predictedDemand === "medium"
-                          ? "default"
-                          : "secondary"
+                            ? "default"
+                            : "secondary"
                       }
                     >
                       {pattern.predictedDemand === "high" ? "Alta" : pattern.predictedDemand === "medium" ? "Media" : "Baja"}

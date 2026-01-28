@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/componentes/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/componentes/ui/dropdown-menu";
 import { toast } from "@/ganchos/usar-toast";
-import { Plus, MoreVertical, Pencil, Trash2, Settings, Package, Calendar, Loader2, Cog, ShieldCheck } from "lucide-react";
+import { Plus, MoreVertical, Pencil, Trash2, Settings, Package, Calendar, Loader2, Cog, ShieldCheck, FileText } from "lucide-react";
 import { SystemSettingsPanel } from "@/componentes/configuracion/PanelConfiguracionSistema";
 import { ImageUpload } from "@/componentes/ui/ImageUpload";
 import { Badge } from "@/componentes/ui/badge";
@@ -187,6 +187,10 @@ export default function AdminSettings() {
                 <Cog className="mr-2 h-4 w-4" />
                 Sistema
               </TabsTrigger>
+              <TabsTrigger value="policies">
+                <FileText className="mr-2 h-4 w-4" />
+                Políticas
+              </TabsTrigger>
               <TabsTrigger value="resources">
                 <Package className="mr-2 h-4 w-4" />
                 Categorías de Recursos
@@ -200,6 +204,26 @@ export default function AdminSettings() {
             {/* System Settings Tab */}
             <TabsContent value="system">
               <SystemSettingsPanel />
+            </TabsContent>
+
+            {/* Policies Tab */}
+            <TabsContent value="policies">
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Políticas Institucionales</CardTitle>
+                    <CardDescription>
+                      Gestiona las políticas y normativas del sistema. Los cambios crean nuevas versiones automáticamente.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button onClick={() => window.location.href = "/admin/policies"}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Gestionar Políticas
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
 
             {/* Resource Categories Tab */}

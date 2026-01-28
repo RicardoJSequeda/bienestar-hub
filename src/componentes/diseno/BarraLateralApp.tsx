@@ -20,6 +20,7 @@ import {
   Package,
   ClipboardList,
   Calendar,
+  CalendarDays,
   Clock,
   Users,
   BarChart3,
@@ -27,6 +28,8 @@ import {
   LogOut,
   ChevronRight,
   Sparkles,
+  AlertTriangle,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/utilidades/utilidades";
 
@@ -35,7 +38,9 @@ const studentMenuItems = [
   { title: "Recursos", icon: Package, path: "/resources" },
   { title: "Mis Préstamos", icon: ClipboardList, path: "/my-loans" },
   { title: "Eventos", icon: Calendar, path: "/events" },
+  { title: "Calendario", icon: CalendarDays, path: "/events/calendar" },
   { title: "Mis Horas", icon: Clock, path: "/my-hours" },
+  { title: "Mis Sanciones", icon: AlertTriangle, path: "/my-sanctions" },
 ];
 
 const adminMenuItems = [
@@ -44,6 +49,8 @@ const adminMenuItems = [
   { title: "Préstamos", icon: ClipboardList, path: "/admin/loans" },
   { title: "Eventos", icon: Calendar, path: "/admin/events" },
   { title: "Usuarios", icon: Users, path: "/admin/users" },
+  { title: "Sanciones", icon: AlertTriangle, path: "/admin/sanctions" },
+  { title: "Políticas", icon: FileText, path: "/admin/policies" },
   { title: "Reportes", icon: BarChart3, path: "/admin/reports" },
   { title: "Configuración", icon: Settings, path: "/admin/settings" },
 ];

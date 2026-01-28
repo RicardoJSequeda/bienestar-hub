@@ -12,8 +12,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/componentes/ui/label";
 import { toast } from "@/ganchos/usar-toast";
 import { validarUsuarioEdicion } from "@/utilidades/validaciones";
-import { Search, MoreVertical, Users, Shield, User, Loader2, Pencil, Trash2, Phone } from "lucide-react";
+import { Search, MoreVertical, Users, Shield, User, Loader2, Pencil, Trash2, Phone, AlertTriangle, Filter, ChevronDown, ChevronUp } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/componentes/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/componentes/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/componentes/ui/collapsible";
+import { useNavigate } from "react-router-dom";
 
 interface UserProfile {
   id: string; // profile id
@@ -29,9 +32,18 @@ interface UserProfile {
 
 export default function AdminUsers() {
   const { user: currentUser } = useAuth();
+  const navigate = useNavigate();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Filtros avanzados
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterRole, setFilterRole] = useState<string>("all");
+  const [filterCampus, setFilterCampus] = useState<string>("all");
+  const [filterProgram, setFilterProgram] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"name" | "email" | "hours" | "created">("name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   // Edit State
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -210,11 +222,45 @@ export default function AdminUsers() {
     setUserToDelete(null);
   };
 
-  const filteredUsers = users.filter((u) =>
-    u.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.student_code?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Función de filtrado avanzado
+  const applyFilters = (usersList: UserProfile[]) => {
+    let filtered = usersList.filter((u) =>
+      u.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.student_code?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    // Filtro por rol
+    if (filterRole !== "all") {
+      filtered = filtered.filter(u => u.role === filterRole);
+    }
+
+    // Ordenamiento
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case "name":
+          comparison = a.full_name.localeCompare(b.full_name);
+          break;
+        case "email":
+          comparison = a.email.localeCompare(b.email);
+          break;
+        case "hours":
+          comparison = a.total_hours - b.total_hours;
+          break;
+        case "created":
+          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+      }
+      
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
+    
+    return filtered;
+  };
+
+  const filteredUsers = applyFilters(users);
 
   return (
     <DashboardLayout>
@@ -238,9 +284,83 @@ export default function AdminUsers() {
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Users className="h-4 w-4" />
-            {users.length} usuarios
+            {filteredUsers.length} de {users.length} usuarios
           </div>
         </div>
+
+        {/* Filtros Avanzados */}
+        <Collapsible open={showFilters} onOpenChange={setShowFilters}>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" className="w-full sm:w-auto">
+              <Filter className="w-4 h-4 mr-2" />
+              Filtros Avanzados
+              {showFilters ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <Card className="mt-4">
+              <CardContent className="pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Filtro por Rol */}
+                  <div className="space-y-2">
+                    <Label>Rol</Label>
+                    <Select value={filterRole} onValueChange={setFilterRole}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="admin">Administrador</SelectItem>
+                        <SelectItem value="student">Estudiante</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Ordenamiento */}
+                  <div className="space-y-2">
+                    <Label>Ordenar por</Label>
+                    <div className="flex gap-2">
+                      <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="name">Nombre</SelectItem>
+                          <SelectItem value="email">Email</SelectItem>
+                          <SelectItem value="hours">Horas</SelectItem>
+                          <SelectItem value="created">Fecha de creación</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                      >
+                        {sortOrder === "asc" ? "↑" : "↓"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botón Limpiar Filtros */}
+                {(filterRole !== "all" || sortBy !== "name" || sortOrder !== "asc") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => {
+                      setFilterRole("all");
+                      setSortBy("name");
+                      setSortOrder("asc");
+                    }}
+                  >
+                    Limpiar Filtros
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          </CollapsibleContent>
+        </Collapsible>
 
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -310,6 +430,12 @@ export default function AdminUsers() {
                             <Shield className="mr-2 h-4 w-4" />
                             {userProfile.role === "admin" ? "Quitar Admin" : "Hacer Admin"}
                           </DropdownMenuItem>
+                          {userProfile.role === "student" && (
+                            <DropdownMenuItem onClick={() => navigate(`/admin/sanctions?user=${userProfile.user_id}`)}>
+                              <AlertTriangle className="mr-2 h-4 w-4" />
+                              Crear Sanción
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onClick={() => handleDeleteClick(userProfile)}

@@ -17,6 +17,9 @@ import MyLoans from "./paginas/estudiante/MisPrestamos";
 import StudentEvents from "./paginas/estudiante/Eventos";
 import EventDetails from "./paginas/estudiante/DetalleEvento";
 import MyHours from "./paginas/estudiante/MisHoras";
+import MySanctions from "./paginas/estudiante/MisSanciones";
+import CalendarEvents from "./paginas/estudiante/CalendarioEventos";
+import NotificationsPage from "./paginas/Notificaciones";
 
 // Admin pages
 import AdminResources from "./paginas/Recursos";
@@ -25,6 +28,8 @@ import AdminEvents from "./paginas/Eventos";
 import AdminUsers from "./paginas/Usuarios";
 import AdminReports from "./paginas/Reportes";
 import AdminSettings from "./paginas/Configuracion";
+import AdminSanctions from "./paginas/Sanciones";
+import AdminPolicies from "./paginas/Politicas";
 
 const queryClient = new QueryClient();
 
@@ -47,12 +52,17 @@ const App = () => (
             <Route path="/my-loans" element={<MyLoans />} />
             <Route path="/events" element={<StudentEvents />} />
             <Route path="/events/:id" element={<EventDetails />} />
+            <Route path="/events/calendar" element={<CalendarEvents />} />
             <Route path="/my-hours" element={<MyHours />} />
+            <Route path="/my-sanctions" element={<MySanctions />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             {/* Admin routes */}
             <Route path="/admin/resources" element={<AdminResources />} />
             <Route path="/admin/loans" element={<AdminLoans />} />
             <Route path="/admin/events" element={<AdminEvents />} />
             <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/sanctions" element={<AdminSanctions />} />
+            <Route path="/admin/policies" element={<AdminPolicies />} />
             <Route path="/admin/reports" element={<AdminReports />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
             <Route path="*" element={<NotFound />} />

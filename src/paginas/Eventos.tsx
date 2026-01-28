@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/componentes/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/componentes/ui/dropdown-menu";
 import { toast } from "@/ganchos/usar-toast";
-import { Plus, Search, MoreVertical, Pencil, Trash2, Calendar, Users, Loader2, Eye } from "lucide-react";
+import { Plus, Search, MoreVertical, Pencil, Trash2, Calendar, Users, Loader2, Eye, XCircle, RotateCcw, Clock3 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { ImageUpload } from "@/componentes/ui/ImageUpload";
@@ -63,6 +63,11 @@ export default function AdminEvents() {
   const [attendanceEvent, setAttendanceEvent] = useState<Event | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [isLoadingEnrollments, setIsLoadingEnrollments] = useState(false);
+
+  // Waitlist dialog
+  const [waitlistEvent, setWaitlistEvent] = useState<Event | null>(null);
+  const [waitlist, setWaitlist] = useState<Array<{ id: string; position: number; status: string; user_id: string; profiles: { full_name: string; email: string } }>>([]);
+  const [isLoadingWaitlist, setIsLoadingWaitlist] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -135,7 +140,7 @@ export default function AdminEvents() {
         id,
         user_id,
         attended,
-        profiles:user_id (full_name, email, student_code)
+        profiles!event_enrollments_user_id_fkey (full_name, email, student_code)
       `)
       .eq("event_id", eventId);
 
@@ -236,15 +241,62 @@ export default function AdminEvents() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Estás seguro de eliminar este evento?")) return;
+    const event = events.find(e => e.id === id);
+    if (!event) return;
 
-    const { error } = await supabase.from("events").delete().eq("id", id);
-    if (error) {
-      toast({ title: "Error", description: "No se pudo eliminar el evento", variant: "destructive" });
+    const action = event.is_active
+      ? confirm("¿Estás seguro de cancelar este evento? Se notificará a todos los inscritos.")
+      : confirm("¿Estás seguro de eliminar permanentemente este evento?");
+
+    if (!action) return;
+
+    if (event.is_active) {
+      // Cancelar evento (desactivar y notificar)
+      const { error: updateError } = await supabase
+        .from("events")
+        .update({ is_active: false })
+        .eq("id", id);
+
+      if (updateError) {
+        toast({ title: "Error", description: "No se pudo cancelar el evento", variant: "destructive" });
+        return;
+      }
+
+      // Obtener todos los inscritos
+      const { data: enrollments } = await supabase
+        .from("event_enrollments")
+        .select("user_id")
+        .eq("event_id", id);
+
+      if (enrollments && enrollments.length > 0) {
+        // Notificar a todos los inscritos
+        await supabase.from("notifications").insert(
+          enrollments.map(enrollment => ({
+            user_id: enrollment.user_id,
+            type: "event_cancelled",
+            title: "Evento cancelado",
+            message: `El evento "${event.title}" ha sido cancelado.`,
+            link: "/events",
+            data: { event_id: id },
+          })) as any
+        );
+      }
+
+      toast({
+        title: "Evento cancelado",
+        description: `Se notificó a ${enrollments?.length || 0} estudiante(s) inscrito(s)`
+      });
     } else {
-      toast({ title: "Eliminado", description: "Evento eliminado correctamente" });
-      fetchEvents();
+      // Eliminar permanentemente (solo si ya está cancelado)
+      const { error: deleteError } = await supabase.from("events").delete().eq("id", id);
+      if (deleteError) {
+        toast({ title: "Error", description: "No se pudo eliminar el evento", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Eliminado", description: "Evento eliminado permanentemente" });
     }
+
+    fetchEvents();
   };
 
   const handleAttendance = async (enrollment: Enrollment, attended: boolean) => {
@@ -295,6 +347,76 @@ export default function AdminEvents() {
   const openAttendanceDialog = (event: Event) => {
     setAttendanceEvent(event);
     fetchEnrollments(event.id);
+  };
+
+  const openWaitlistDialog = async (event: Event) => {
+    setWaitlistEvent(event);
+    setIsLoadingWaitlist(true);
+
+    const { data, error } = await supabase
+      .from("event_waitlist")
+      .select(`
+        *,
+        profiles!event_waitlist_user_id_fkey (full_name, email)
+      `)
+      .eq("event_id", event.id)
+      .order("position", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching waitlist:", error);
+      toast({ title: "Error", description: "No se pudo cargar la lista de espera", variant: "destructive" });
+    } else {
+      setWaitlist(data as any || []);
+    }
+
+    setIsLoadingWaitlist(false);
+  };
+
+  const handleNotifyWaitlist = async (waitlistId: string) => {
+    const { error } = await supabase
+      .from("event_waitlist")
+      .update({
+        status: "notified",
+        notified_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      } as any)
+      .eq("id", waitlistId);
+
+    if (error) {
+      toast({ title: "Error", description: "No se pudo notificar", variant: "destructive" });
+    } else {
+      // Crear notificación
+      const waitlistItem = waitlist.find(w => w.id === waitlistId);
+      if (waitlistItem) {
+        await supabase.from("notifications").insert({
+          user_id: waitlistItem.user_id,
+          type: "waitlist_spot_available",
+          title: "Cupo disponible en evento",
+          message: `Hay un cupo disponible para el evento "${waitlistEvent?.title}". Tienes 24 horas para inscribirte.`,
+          link: "/events",
+          data: { event_id: waitlistEvent?.id, waitlist_id: waitlistId },
+        } as any);
+      }
+
+      toast({ title: "Notificado", description: "Se ha notificado al estudiante" });
+      openWaitlistDialog(waitlistEvent!);
+    }
+  };
+
+  const handleRemoveFromWaitlist = async (waitlistId: string) => {
+    if (!confirm("¿Estás seguro de eliminar esta posición de la lista de espera?")) return;
+
+    const { error } = await supabase
+      .from("event_waitlist")
+      .delete()
+      .eq("id", waitlistId);
+
+    if (error) {
+      toast({ title: "Error", description: "No se pudo eliminar", variant: "destructive" });
+    } else {
+      toast({ title: "Eliminado", description: "Posición eliminada de la lista" });
+      openWaitlistDialog(waitlistEvent!);
+    }
   };
 
   const filteredEvents = events.filter((e) =>
@@ -374,8 +496,8 @@ export default function AdminEvents() {
                     </TableCell>
                     <TableCell>{event.wellness_hours}h</TableCell>
                     <TableCell>
-                      <Badge variant={event.is_active ? "default" : "secondary"}>
-                        {event.is_active ? "Activo" : "Inactivo"}
+                      <Badge variant={event.is_active ? "default" : "destructive"}>
+                        {event.is_active ? "Activo" : "Cancelado"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -390,17 +512,52 @@ export default function AdminEvents() {
                             <Eye className="mr-2 h-4 w-4" />
                             Ver Inscritos
                           </DropdownMenuItem>
+                          {event.max_participants && event.enrollment_count && event.enrollment_count >= event.max_participants && (
+                            <DropdownMenuItem onClick={() => openWaitlistDialog(event)}>
+                              <Clock3 className="mr-2 h-4 w-4" />
+                              Ver Lista de Espera
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => handleOpenDialog(event)}>
                             <Pencil className="mr-2 h-4 w-4" />
                             Editar
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => handleDelete(event.id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Eliminar
-                          </DropdownMenuItem>
+                          {event.is_active ? (
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => handleDelete(event.id)}
+                            >
+                              <XCircle className="mr-2 h-4 w-4" />
+                              Cancelar Evento
+                            </DropdownMenuItem>
+                          ) : (
+                            <>
+                              <DropdownMenuItem
+                                onClick={async () => {
+                                  const { error } = await supabase
+                                    .from("events")
+                                    .update({ is_active: true })
+                                    .eq("id", event.id);
+                                  if (error) {
+                                    toast({ title: "Error", description: "No se pudo reactivar el evento", variant: "destructive" });
+                                  } else {
+                                    toast({ title: "Evento reactivado", description: "El evento está nuevamente activo" });
+                                    fetchEvents();
+                                  }
+                                }}
+                              >
+                                <RotateCcw className="mr-2 h-4 w-4" />
+                                Reactivar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => handleDelete(event.id)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Eliminar Permanentemente
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -522,6 +679,88 @@ export default function AdminEvents() {
               <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {editingEvent ? "Guardar Cambios" : "Crear Evento"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Waitlist Dialog */}
+        <Dialog open={!!waitlistEvent} onOpenChange={() => setWaitlistEvent(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Lista de Espera</DialogTitle>
+              <DialogDescription>{waitlistEvent?.title}</DialogDescription>
+            </DialogHeader>
+            {isLoadingWaitlist ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : waitlist.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                No hay estudiantes en lista de espera
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Posición</TableHead>
+                      <TableHead>Estudiante</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {waitlist.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-bold">#{item.position}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{item.profiles?.full_name}</p>
+                            <p className="text-xs text-muted-foreground">{item.profiles?.email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            item.status === "notified" ? "default" :
+                              item.status === "enrolled" ? "secondary" :
+                                item.status === "expired" ? "destructive" : "outline"
+                          }>
+                            {item.status === "waiting" ? "Esperando" :
+                              item.status === "notified" ? "Notificado" :
+                                item.status === "enrolled" ? "Inscrito" :
+                                  item.status === "expired" ? "Expirado" : item.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            {item.status === "waiting" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleNotifyWaitlist(item.id)}
+                              >
+                                Notificar
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleRemoveFromWaitlist(item.id)}
+                            >
+                              Eliminar
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setWaitlistEvent(null)}>
+                Cerrar
               </Button>
             </DialogFooter>
           </DialogContent>

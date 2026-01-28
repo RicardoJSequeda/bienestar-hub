@@ -9,7 +9,7 @@ import { Badge } from "@/componentes/ui/badge";
 import { Input } from "@/componentes/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/componentes/ui/dialog";
 import { toast } from "@/ganchos/usar-toast";
-import { Calendar, Clock, MapPin, Users, Loader2, CheckCircle, Search, Play, Ticket, ChevronRight, Share2 } from "lucide-react";
+import { Calendar, Clock, MapPin, Users, Loader2, CheckCircle, Search, Play, Ticket, ChevronRight, Share2, Clock3, X } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { HeroSkeleton, CardSkeleton } from "@/componentes/ui/skeleton-loaders";
@@ -34,6 +34,8 @@ interface Event {
   } | null;
   enrollment_count: number;
   is_enrolled: boolean;
+  waitlist_position?: number | null;
+  is_in_waitlist?: boolean;
 }
 
 interface Category {
@@ -52,6 +54,7 @@ export default function StudentEvents() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [categories, setCategories] = useState<Category[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [myWaitlist, setMyWaitlist] = useState<Record<string, { position: number; status: string }>>({});
 
   useEffect(() => {
     if (profile?.user_id) {
@@ -94,17 +97,34 @@ export default function StudentEvents() {
       const enrolledEventIds = userEnrollments?.map((e) => e.event_id) || [];
       setMyEnrollments(enrolledEventIds);
 
+      // Fetch user's waitlist positions
+      const { data: userWaitlist } = await supabase
+        .from("event_waitlist")
+        .select("event_id, position, status")
+        .eq("user_id", profile!.user_id);
+
+      const waitlistMap: Record<string, { position: number; status: string }> = {};
+      userWaitlist?.forEach((w) => {
+        waitlistMap[w.event_id] = { position: w.position, status: w.status };
+      });
+      setMyWaitlist(waitlistMap);
+
       // Count enrollments per event
       const countMap: Record<string, number> = {};
       enrollmentCounts?.forEach((e) => {
         countMap[e.event_id] = (countMap[e.event_id] || 0) + 1;
       });
 
-      const eventsWithCounts = eventsData?.map((event) => ({
-        ...event,
-        enrollment_count: countMap[event.id] || 0,
-        is_enrolled: enrolledEventIds.includes(event.id),
-      })) as Event[];
+      const eventsWithCounts = eventsData?.map((event) => {
+        const waitlistInfo = waitlistMap[event.id];
+        return {
+          ...event,
+          enrollment_count: countMap[event.id] || 0,
+          is_enrolled: enrolledEventIds.includes(event.id),
+          waitlist_position: waitlistInfo?.position || null,
+          is_in_waitlist: !!waitlistInfo,
+        };
+      }) as Event[];
 
       setEvents(eventsWithCounts || []);
     } catch (err) {
@@ -117,6 +137,7 @@ export default function StudentEvents() {
 
   useRealtimeSubscription("events", fetchData);
   useRealtimeSubscription("event_enrollments", fetchData);
+  useRealtimeSubscription("event_waitlist", fetchData);
 
   const handleEnroll = async (event: Event) => {
     if (!profile?.user_id) return;
@@ -153,6 +174,93 @@ export default function StudentEvents() {
     } else {
       toast({ title: "Inscripción cancelada", description: "Has liberado tu cupo." });
       fetchData();
+    }
+    setIsProcessing(false);
+  };
+
+  const handleJoinWaitlist = async (event: Event) => {
+    if (!profile?.user_id) return;
+    setIsProcessing(true);
+
+    try {
+      const { data, error } = await (supabase.rpc as any)("join_event_waitlist", {
+        p_event_id: event.id,
+        p_user_id: profile.user_id,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Te uniste a la lista de espera",
+        description: `Estás en posición ${myWaitlist[event.id]?.position || "..."}. Te notificaremos cuando haya cupo disponible.`,
+      });
+      fetchData();
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "No se pudo unir a la lista de espera",
+        variant: "destructive",
+      });
+    }
+    setIsProcessing(false);
+  };
+
+  const handleLeaveWaitlist = async (event: Event) => {
+    if (!profile?.user_id) return;
+    setIsProcessing(true);
+
+    const { error } = await supabase
+      .from("event_waitlist")
+      .delete()
+      .eq("user_id", profile.user_id)
+      .eq("event_id", event.id)
+      .eq("status", "waiting");
+
+    if (error) {
+      toast({ title: "Error", description: "No se pudo salir de la lista de espera", variant: "destructive" });
+    } else {
+      toast({ title: "Saliste de la lista de espera", description: "Tu posición ha sido liberada." });
+      fetchData();
+    }
+    setIsProcessing(false);
+  };
+
+  const handleEnrollFromWaitlist = async (event: Event) => {
+    if (!profile?.user_id) return;
+    setIsProcessing(true);
+
+    try {
+      // Buscar el ID del registro waitlist
+      const { data: waitlistData } = await supabase
+        .from("event_waitlist")
+        .select("id")
+        .eq("event_id", event.id)
+        .eq("user_id", profile.user_id)
+        .eq("status", "notified")
+        .single();
+
+      if (!waitlistData) {
+        throw new Error("No se encontró registro de lista de espera");
+      }
+
+      const { error } = await (supabase.rpc as any)("enroll_from_waitlist", {
+        p_waitlist_id: waitlistData.id,
+        p_user_id: profile.user_id,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "¡Inscripción exitosa!",
+        description: "Te has inscrito al evento desde la lista de espera.",
+      });
+      fetchData();
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "No se pudo inscribir al evento",
+        variant: "destructive",
+      });
     }
     setIsProcessing(false);
   };
@@ -317,6 +425,8 @@ export default function StudentEvents() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredEvents.map((event) => {
                 const isFull = event.max_participants ? (event.enrollment_count >= event.max_participants) : false;
+                const waitlistInfo = myWaitlist[event.id];
+                const isNotified = waitlistInfo?.status === "notified";
                 return (
                   <div key={event.id} className="group bg-card rounded-3xl overflow-hidden border-0 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full cursor-pointer" onClick={() => navigate(`/events/${event.id}`)}>
                     {/* Image */}
@@ -357,6 +467,16 @@ export default function StudentEvents() {
                           <Users className="w-4 h-4 mr-2" />
                           <span>{event.enrollment_count} {event.max_participants && `/ ${event.max_participants}`} inscritos</span>
                         </div>
+                        {event.is_in_waitlist && (
+                          <div className="flex items-center text-sm text-primary font-medium">
+                            <Clock3 className="w-4 h-4 mr-2" />
+                            <span>
+                              {isNotified 
+                                ? "¡Cupo disponible! (24h para inscribirte)"
+                                : `Lista de espera: Posición #${event.waitlist_position}`}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="mt-5 pt-4 border-t border-border/50 flex gap-2">
@@ -364,9 +484,44 @@ export default function StudentEvents() {
                           <Button variant="ghost" className="w-full text-destructive hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); handleUnenroll(event); }}>
                             Cancelar
                           </Button>
+                        ) : isNotified ? (
+                          <Button 
+                            className="w-full rounded-xl font-bold bg-primary hover:bg-primary/90" 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              // Obtener waitlist_id desde notificación o buscar
+                              const waitlistEntry = Object.entries(myWaitlist).find(([id]) => id === event.id);
+                              if (waitlistEntry) {
+                                // Necesitamos el ID del registro waitlist, no el event_id
+                                // Por ahora, usaremos una búsqueda directa
+                                handleEnrollFromWaitlist(event);
+                              }
+                            }}
+                          >
+                            Inscribirse Ahora
+                          </Button>
+                        ) : event.is_in_waitlist ? (
+                          <Button 
+                            variant="outline" 
+                            className="w-full" 
+                            onClick={(e) => { e.stopPropagation(); handleLeaveWaitlist(event); }}
+                          >
+                            <X className="w-4 h-4 mr-2" />
+                            Salir de Lista
+                          </Button>
+                        ) : isFull ? (
+                          <Button 
+                            variant="outline" 
+                            className="w-full rounded-xl font-bold" 
+                            disabled={isProcessing} 
+                            onClick={(e) => { e.stopPropagation(); handleJoinWaitlist(event); }}
+                          >
+                            <Clock3 className="w-4 h-4 mr-2" />
+                            Lista de Espera
+                          </Button>
                         ) : (
-                          <Button className="w-full rounded-xl font-bold" disabled={isFull || isProcessing} onClick={(e) => { e.stopPropagation(); handleEnroll(event); }}>
-                            {isFull ? "Cupo Lleno" : "Inscribirse"}
+                          <Button className="w-full rounded-xl font-bold" disabled={isProcessing} onClick={(e) => { e.stopPropagation(); handleEnroll(event); }}>
+                            Inscribirse
                           </Button>
                         )}
                       </div>

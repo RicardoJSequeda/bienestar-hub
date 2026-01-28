@@ -13,6 +13,7 @@ interface Profile {
   campus_id: string | null;
   program_id: string | null;
   email: string;
+  avatar_url: string | null;
 }
 
 interface AuthContextType {
@@ -86,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(currentSession?.user ?? null);
         setIsEmailVerified(Boolean(currentSession?.user?.email_confirmed_at));
 
-        if (event === "TOKEN_REFRESH_FAILED") {
+        if ((event as string) === "TOKEN_REFRESH_FAILED") {
           localStorage.setItem("auth_expired", "1");
         }
 
