@@ -65,7 +65,39 @@ export function MobileBottomNav() {
 
   const isActive = (path: string) => {
     if (path === "more") {
-@@ -99,77 +101,83 @@
+      return moreItems.some(item => location.pathname === item.path);
+    }
+    return location.pathname === path;
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  return (
+    <>
+      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-background/95 backdrop-blur-xl border-t border-border safe-area-inset-bottom">
+        <div className="flex items-center justify-around h-16 px-2">
+          {navItems.map((item) => {
+            const active = isActive(item.path);
+            return (
+              <button
+                key={item.path}
+                onClick={() => handleNavClick(item.path)}
+                className={cn(
+                  "flex flex-col items-center justify-center flex-1 h-full gap-0.5 touch-target active-scale",
+                  "transition-colors duration-200",
+                  active ? "text-primary" : "text-muted-foreground"
+                )}
+              >
+                <div className={cn(
+                  "flex items-center justify-center w-10 h-7 rounded-full transition-colors",
+                  active && "bg-primary/10"
                 )}>
                   <item.icon className={cn(
                     "h-5 w-5 transition-all",
@@ -90,10 +122,8 @@ export function MobileBottomNav() {
           <SheetHeader className="pb-4">
             <SheetTitle className="text-left">Menú</SheetTitle>
           </SheetHeader>
-          
 
           {/* User info */}
-          <div className="flex items-center gap-3 p-3 mb-4 rounded-xl bg-muted/50">
           <div
             className="flex items-center gap-3 p-3 mb-4 rounded-xl bg-muted/50 active:bg-muted transition-colors cursor-pointer"
             onClick={() => {
