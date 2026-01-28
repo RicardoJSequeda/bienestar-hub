@@ -27,6 +27,7 @@ const studentNavItems = [
 ];
 
 const studentMoreItems = [
+  { title: "Mi Perfil", icon: Settings, path: "/profile" },
   { title: "Mis Horas", icon: Clock, path: "/my-hours" },
 ];
 
@@ -39,6 +40,7 @@ const adminNavItems = [
 ];
 
 const adminMoreItems = [
+  { title: "Mi Perfil", icon: Settings, path: "/profile" },
   { title: "Usuarios", icon: Users, path: "/admin/users" },
   { title: "Reportes", icon: BarChart3, path: "/admin/reports" },
   { title: "Configuración", icon: Settings, path: "/admin/settings" },
@@ -120,9 +122,15 @@ export function MobileBottomNav() {
           <SheetHeader className="pb-4">
             <SheetTitle className="text-left">Menú</SheetTitle>
           </SheetHeader>
-          
+
           {/* User info */}
-          <div className="flex items-center gap-3 p-3 mb-4 rounded-xl bg-muted/50">
+          <div
+            className="flex items-center gap-3 p-3 mb-4 rounded-xl bg-muted/50 active:bg-muted transition-colors cursor-pointer"
+            onClick={() => {
+              navigate("/profile");
+              setIsMoreOpen(false);
+            }}
+          >
             <Avatar className="h-12 w-12">
               <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
                 {getInitials(profile?.full_name || "U")}
