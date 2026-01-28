@@ -38,42 +38,45 @@ export function StudentDashboard() {
     if (!profile?.user_id) return;
 
     try {
-      // 1. Upcoming Events (Next 30 days)
-      const { data: events } = await supabase
-        .from("event_enrollments")
-        .select("*, events(*)")
-        .eq("user_id", profile.user_id)
-        .gte("events.start_date", new Date().toISOString())
-        .order("events(start_date)", { ascending: true })
-        .limit(5);
+      // Ejecutar todas las queries en paralelo para mejor rendimiento
+      const [eventsResult, loansResult, resourcesResult, hoursResult] = await Promise.all([
+        // 1. Upcoming Events (Next 30 days)
+        supabase
+          .from("event_enrollments")
+          .select("*, events(*)")
+          .eq("user_id", profile.user_id)
+          .gte("events.start_date", new Date().toISOString())
+          .order("events(start_date)", { ascending: true })
+          .limit(5),
 
-      // 2. Active Loans
-      const { data: loans } = await supabase
-        .from("loans")
-        .select("*, resources(*)")
-        .eq("user_id", profile.user_id)
-        .in("status", ["approved", "active"])
-        .limit(10);
+        // 2. Active Loans
+        supabase
+          .from("loans")
+          .select("*, resources(*)")
+          .eq("user_id", profile.user_id)
+          .in("status", ["approved", "active"])
+          .limit(10),
 
-      // 3. Popular Resources
-      const { data: resources } = await supabase
-        .from("resources")
-        .select("*, resource_categories(*)")
-        .eq("status", "available")
-        .limit(6);
+        // 3. Popular Resources
+        supabase
+          .from("resources")
+          .select("*, resource_categories(*)")
+          .eq("status", "available")
+          .limit(6),
 
-      // 4. Hours
-      const { data: hours } = await supabase
-        .from("wellness_hours")
-        .select("hours")
-        .eq("user_id", profile.user_id);
+        // 4. Hours
+        supabase
+          .from("wellness_hours")
+          .select("hours")
+          .eq("user_id", profile.user_id),
+      ]);
 
-      const totalHours = hours?.reduce((sum, h) => sum + Number(h.hours), 0) || 0;
+      const totalHours = hoursResult.data?.reduce((sum, h) => sum + Number(h.hours), 0) || 0;
 
       setData({
-        upcomingEvents: events || [],
-        activeLoans: loans || [],
-        popularResources: resources || [],
+        upcomingEvents: eventsResult.data || [],
+        activeLoans: loansResult.data || [],
+        popularResources: resourcesResult.data || [],
         totalHours
       });
     } catch (error) {

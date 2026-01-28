@@ -1,73 +1,70 @@
-# Welcome to your Lovable project
+# Bienestar Hub
 
-## Project info
+Aplicacion web para gestion de bienestar universitario: recursos, eventos, prestamos y horas de bienestar.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Stack
 
-## How can I edit this code?
+- Vite + React + TypeScript
+- Tailwind CSS + shadcn/ui
+- Supabase (auth + database + realtime)
+- Vitest (tests)
 
-There are several ways of editing your application.
+## Estructura (resumen)
 
-**Use Lovable**
+```
+src/
+  componentes/   UI y componentes de dominio
+  contextos/     Contextos globales (Auth)
+  ganchos/       Hooks personalizados
+  paginas/       Vistas de la app (admin y estudiante)
+  servicios/     Cliente y tipos de Supabase
+  utilidades/    Helpers y validaciones
+  pruebas/       Tests (Vitest)
+```
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Requisitos
 
-Changes made via Lovable will be committed automatically to this repo.
+- Node.js 18+
+- npm
 
-**Use your preferred IDE**
+## Configuracion local
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+1. Instalar dependencias:
+```
+npm install
+```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+2. Variables de entorno (crear `.env.local`):
+```
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+```
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+3. Ejecutar:
+```
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Scripts utiles
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- `npm run dev` inicio local
+- `npm run build` build de produccion
+- `npm run test` tests
+- `npm run lint` lint
 
-**Use GitHub Codespaces**
+## Base de datos (Supabase)
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Migraciones consolidadas en:
+- `supabase/migrations/20260124000000_esquema_bd.sql`
+- `supabase/migrations/20260124000001_datos_iniciales.sql`
 
-## What technologies are used for this project?
+Para mas detalle, ver `docs/ARQUITECTURA.md`.
 
-This project is built with:
+## Despliegue (Vercel)
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- Ejecuta `npm run build`
+- Configura `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en Vercel
 
-## How can I deploy this project?
+## Seguridad
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+No subir archivos `.env` al repositorio. Usar `.env.local`.

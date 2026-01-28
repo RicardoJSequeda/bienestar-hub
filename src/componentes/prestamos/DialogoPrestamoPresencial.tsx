@@ -18,7 +18,7 @@ interface Profile {
   full_name: string;
   email: string;
   student_code: string | null;
-  major: string | null;
+  program_id: string | null;
 }
 
 interface Resource {

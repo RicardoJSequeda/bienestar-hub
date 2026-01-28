@@ -46,9 +46,9 @@ export type Database = {
           id: string
           is_read: boolean
           message: string | null
-          severity: string
-          target_role: Database["public"]["Enums"]["app_role"] | null
-          target_user_id: string | null
+          severity: "info" | "warning" | "error"
+          target_role: "admin" | "student" | null
+          user_id: string | null
           title: string
           type: string
         }
@@ -78,7 +78,15 @@ export type Database = {
           title?: string
           type?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "alerts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          }
+        ]
       }
       audit_logs: {
         Row: {
@@ -248,6 +256,61 @@ export type Database = {
             referencedRelation: "events"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "event_enrollments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          }
+        ]
+      }
+      event_waitlist: {
+        Row: {
+          created_at: string
+          event_id: string
+          expires_at: string | null
+          id: string
+          notified_at: string | null
+          position: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          expires_at?: string | null
+          id?: string
+          notified_at?: string | null
+          position: number
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          expires_at?: string | null
+          id?: string
+          notified_at?: string | null
+          position?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_waitlist_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_waitlist_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          }
         ]
       }
       events: {
@@ -308,6 +371,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      institutional_policies: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          title: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          title: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          title?: string
+        }
+        Relationships: []
       }
       loans: {
         Row: {
@@ -370,7 +457,50 @@ export type Database = {
             referencedRelation: "resources"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "loans_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          }
         ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          data: Json | null
+          id: string
+          link: string | null
+          message: string | null
+          read: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json | null
+          id?: string
+          link?: string | null
+          message?: string | null
+          read?: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json | null
+          id?: string
+          link?: string | null
+          message?: string | null
+          read?: boolean
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -438,6 +568,7 @@ export type Database = {
           image_url: string | null
           is_low_risk: boolean | null
           max_loan_days: number | null
+          max_per_student: number | null
           name: string
           requires_approval: boolean | null
         }
@@ -468,6 +599,83 @@ export type Database = {
           requires_approval?: boolean | null
         }
         Relationships: []
+      }
+      resource_damages: {
+        Row: {
+          created_at: string
+          damage_images: string[] | null
+          damage_type: "damage" | "loss" | "theft"
+          description: string
+          estimated_cost: number | null
+          fine_amount: number | null
+          id: string
+          loan_id: string
+          reported_by: string | null
+          resource_id: string
+          severity: "minor" | "moderate" | "severe" | "total_loss"
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          damage_images?: string[] | null
+          damage_type: "damage" | "loss" | "theft"
+          description: string
+          estimated_cost?: number | null
+          fine_amount?: number | null
+          id?: string
+          loan_id: string
+          reported_by?: string | null
+          resource_id: string
+          severity: "minor" | "moderate" | "severe" | "total_loss"
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          damage_images?: string[] | null
+          damage_type?: "damage" | "loss" | "theft"
+          description?: string
+          estimated_cost?: number | null
+          fine_amount?: number | null
+          id?: string
+          loan_id?: string
+          reported_by?: string | null
+          resource_id?: string
+          severity?: "minor" | "moderate" | "severe" | "total_loss"
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_damages_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resource_damages_reported_by_fkey"
+            columns: ["reported_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "resource_damages_resource_id_fkey"
+            columns: ["resource_id"]
+            isOneToOne: false
+            referencedRelation: "resources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resource_damages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          }
+        ]
       }
       resource_queue: {
         Row: {
@@ -552,6 +760,7 @@ export type Database = {
       student_behavioral_status: {
         Row: {
           blocked_until: string | null
+          blocked_reason: string | null
           created_at: string | null
           is_blocked: boolean | null
           last_intervention_at: string | null
@@ -561,6 +770,7 @@ export type Database = {
         }
         Insert: {
           blocked_until?: string | null
+          blocked_reason?: string | null
           created_at?: string | null
           is_blocked?: boolean | null
           last_intervention_at?: string | null
@@ -570,6 +780,7 @@ export type Database = {
         }
         Update: {
           blocked_until?: string | null
+          blocked_reason?: string | null
           created_at?: string | null
           is_blocked?: boolean | null
           last_intervention_at?: string | null
@@ -582,9 +793,73 @@ export type Database = {
             foreignKeyName: "student_behavioral_status_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
-            referencedRelation: "users"
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          }
+        ]
+      }
+      student_sanctions: {
+        Row: {
+          appeal_notes: string | null
+          created_at: string
+          end_date: string | null
+          id: string
+          issued_by: string | null
+          policy_id: string | null
+          reason: string
+          severity: "low" | "medium" | "high" | "critical"
+          start_date: string
+          status: "active" | "completed" | "appealed" | "voided"
+          user_id: string
+        }
+        Insert: {
+          appeal_notes?: string | null
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          issued_by?: string | null
+          policy_id?: string | null
+          reason: string
+          severity: "low" | "medium" | "high" | "critical"
+          start_date?: string
+          status?: "active" | "completed" | "appealed" | "voided"
+          user_id: string
+        }
+        Update: {
+          appeal_notes?: string | null
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          issued_by?: string | null
+          policy_id?: string | null
+          reason?: string
+          severity?: "low" | "medium" | "high" | "critical"
+          start_date?: string
+          status?: "active" | "completed" | "appealed" | "voided"
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_sanctions_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "institutional_policies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "student_sanctions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "student_sanctions_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          }
         ]
       }
       system_settings: {

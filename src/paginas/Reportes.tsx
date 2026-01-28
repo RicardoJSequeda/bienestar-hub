@@ -7,11 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/componentes/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/componentes/ui/tabs";
 import { toast } from "@/ganchos/usar-toast";
-import { Download, BarChart3, Package, Calendar, Clock, Users, TrendingUp, Loader2, Sparkles } from "lucide-react";
+import { Download, BarChart3, Package, Calendar, Clock, Users, TrendingUp, Loader2, Sparkles, PieChart } from "lucide-react";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { DemandPrediction } from "@/componentes/reportes/PrediccionDemanda";
 import { AlertsPanel } from "@/componentes/alertas/PanelAlertas";
+import { BarChart, Bar, LineChart, Line, PieChart as RechartsPieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 interface ResourceStats {
   name: string;
@@ -40,6 +41,8 @@ export default function AdminReports() {
   const [resourceStats, setResourceStats] = useState<ResourceStats[]>([]);
   const [userStats, setUserStats] = useState<UserStats[]>([]);
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats>({ loans: 0, events: 0, hours: 0 });
+  const [monthlyTrends, setMonthlyTrends] = useState<Array<{ month: string; loans: number; events: number; hours: number }>>([]);
+  const [categoryDistribution, setCategoryDistribution] = useState<Array<{ name: string; value: number }>>([]);
 
   const months = Array.from({ length: 12 }, (_, i) => {
     const date = subMonths(new Date(), i);
@@ -154,6 +157,52 @@ export default function AdminReports() {
 
     setUserStats(Object.values(userMap).sort((a, b) => b.total_hours - a.total_hours).slice(0, 10));
 
+    // Calcular tendencias mensuales (últimos 6 meses)
+    const trendsData: Array<{ month: string; loans: number; events: number; hours: number }> = [];
+    for (let i = 5; i >= 0; i--) {
+      const trendDate = subMonths(new Date(year, month - 1), i);
+      const trendStart = startOfMonth(trendDate);
+      const trendEnd = endOfMonth(trendDate);
+
+      const { data: trendLoans } = await supabase
+        .from("loans")
+        .select("id")
+        .gte("requested_at", trendStart.toISOString())
+        .lte("requested_at", trendEnd.toISOString());
+
+      const { data: trendEvents } = await supabase
+        .from("events")
+        .select("id")
+        .gte("start_date", trendStart.toISOString())
+        .lte("start_date", trendEnd.toISOString());
+
+      const { data: trendHours } = await supabase
+        .from("wellness_hours")
+        .select("hours")
+        .gte("awarded_at", trendStart.toISOString())
+        .lte("awarded_at", trendEnd.toISOString());
+
+      const totalTrendHours = trendHours?.reduce((sum, h) => sum + Number(h.hours), 0) || 0;
+
+      trendsData.push({
+        month: format(trendDate, "MMM yyyy", { locale: es }),
+        loans: trendLoans?.length || 0,
+        events: trendEvents?.length || 0,
+        hours: totalTrendHours,
+      });
+    }
+    setMonthlyTrends(trendsData);
+
+    // Calcular distribución por categoría
+    const categoryMap: Record<string, number> = {};
+    loans?.forEach((loan: any) => {
+      const category = loan.resources?.resource_categories?.name || "Sin categoría";
+      categoryMap[category] = (categoryMap[category] || 0) + 1;
+    });
+    setCategoryDistribution(
+      Object.entries(categoryMap).map(([name, value]) => ({ name, value }))
+    );
+
     setIsLoading(false);
   };
 
@@ -209,6 +258,10 @@ export default function AdminReports() {
             <TabsTrigger value="overview">
               <BarChart3 className="mr-2 h-4 w-4" />
               Resumen
+            </TabsTrigger>
+            <TabsTrigger value="charts">
+              <PieChart className="mr-2 h-4 w-4" />
+              Gráficos
             </TabsTrigger>
             <TabsTrigger value="prediction">
               <TrendingUp className="mr-2 h-4 w-4" />
@@ -366,6 +419,99 @@ export default function AdminReports() {
                               ))}
                             </TableBody>
                           </Table>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Charts Tab */}
+          <TabsContent value="charts">
+            <div className="space-y-6">
+              {isLoading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <>
+                  {/* Monthly Trends Line Chart */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Tendencias Mensuales</CardTitle>
+                      <CardDescription>Evolución de préstamos, eventos y horas en los últimos 6 meses</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={monthlyTrends}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="month" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Line type="monotone" dataKey="loans" stroke="#8884d8" name="Préstamos" />
+                          <Line type="monotone" dataKey="events" stroke="#82ca9d" name="Eventos" />
+                          <Line type="monotone" dataKey="hours" stroke="#ffc658" name="Horas" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {/* Top Resources Bar Chart */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Recursos Más Prestados</CardTitle>
+                        <CardDescription>Top 5 recursos del mes</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {resourceStats.length === 0 ? (
+                          <p className="text-center text-muted-foreground py-8">No hay datos</p>
+                        ) : (
+                          <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={resourceStats.slice(0, 5)}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
+                              <YAxis />
+                              <Tooltip />
+                              <Bar dataKey="loan_count" fill="#8884d8" name="Préstamos" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Category Distribution Pie Chart */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Distribución por Categoría</CardTitle>
+                        <CardDescription>Préstamos por categoría de recurso</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {categoryDistribution.length === 0 ? (
+                          <p className="text-center text-muted-foreground py-8">No hay datos</p>
+                        ) : (
+                          <ResponsiveContainer width="100%" height={300}>
+                            <RechartsPieChart>
+                              <Pie
+                                data={categoryDistribution}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                outerRadius={80}
+                                fill="#8884d8"
+                                dataKey="value"
+                              >
+                                {categoryDistribution.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#00ff00"][index % 5]} />
+                                ))}
+                              </Pie>
+                              <Tooltip />
+                            </RechartsPieChart>
+                          </ResponsiveContainer>
                         )}
                       </CardContent>
                     </Card>

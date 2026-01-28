@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contextos/ContextoAutenticacion";
 import { Button } from "@/componentes/ui/button";
 import { Input } from "@/componentes/ui/input";
@@ -8,12 +8,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/componentes/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/componentes/ui/dialog";
 import { useToast } from "@/ganchos/usar-toast";
-import { GraduationCap, Loader2, Shield, Sparkles, BookOpen, Users, Phone, Hash, Landmark, School, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { Loader2, Shield, Sparkles, BookOpen, Users, Phone, Hash, Landmark, School, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { supabase } from "@/servicios/cliente";
 
 export default function Auth() {
   const { user, isLoading, signIn, signUp } = useAuth();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [view, setView] = useState<"login" | "register">("login");
 
@@ -26,6 +27,8 @@ export default function Auth() {
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [isRecovering, setIsRecovering] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
+  const [isResendingVerification, setIsResendingVerification] = useState(false);
 
   // Register form state
   const [registerEmail, setRegisterEmail] = useState("");
@@ -45,6 +48,24 @@ export default function Auth() {
     }
     fetchMetadata();
   }, []);
+
+  useEffect(() => {
+    const expired = localStorage.getItem("auth_expired");
+    if (expired) {
+      toast({
+        title: "Sesión expirada",
+        description: "Tu sesión expiró. Inicia sesión nuevamente.",
+      });
+      localStorage.removeItem("auth_expired");
+    }
+
+    if (searchParams.get("verificado")) {
+      toast({
+        title: "Correo verificado",
+        description: "Tu correo fue verificado. Ya puedes iniciar sesión.",
+      });
+    }
+  }, [searchParams, toast]);
 
   if (isLoading) {
     return (
@@ -68,13 +89,21 @@ export default function Auth() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    const { error } = await signIn(loginEmail, loginPassword);
+    const { error, user: signedUser } = await signIn(loginEmail, loginPassword);
 
     if (error) {
       toast({
         variant: "destructive",
         title: "Error de autenticación",
         description: "Credenciales inválidas. Por favor verifique su correo y contraseña.",
+      });
+    } else if (!signedUser?.email_confirmed_at) {
+      await supabase.auth.signOut();
+      setVerificationEmail(loginEmail);
+      toast({
+        variant: "destructive",
+        title: "Correo no verificado",
+        description: "Revisa tu correo y confirma tu cuenta antes de iniciar sesión.",
       });
     }
 
@@ -212,9 +241,10 @@ export default function Auth() {
         });
       }
     } else {
+      setVerificationEmail(registerEmail);
       toast({
-        title: "¡Solicitud enviada!",
-        description: "Tu cuenta ha sido creada. Por favor verifica tu correo electrónico si es requerido o inicia sesión.",
+        title: "Cuenta creada",
+        description: "Revisa tu correo y confirma tu cuenta antes de iniciar sesión.",
       });
 
       setLoginEmail(registerEmail);
@@ -222,6 +252,29 @@ export default function Auth() {
     }
 
     setIsSubmitting(false);
+  };
+
+  const handleResendVerification = async () => {
+    if (!verificationEmail) return;
+    setIsResendingVerification(true);
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: verificationEmail,
+    });
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "No se pudo reenviar",
+        description: error.message,
+      });
+    } else {
+      toast({
+        title: "Correo reenviado",
+        description: "Revisa tu bandeja de entrada para confirmar tu cuenta.",
+      });
+    }
+    setIsResendingVerification(false);
   };
 
   const features = [
@@ -243,12 +296,16 @@ export default function Auth() {
         <div className="relative z-10 flex flex-col justify-center px-12 lg:px-16">
           {/* Logo */}
           <div className="flex items-center gap-4 mb-12">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20">
-              <GraduationCap className="h-8 w-8 text-white" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white backdrop-blur-sm border border-white/20 p-1">
+              <img
+                src="/logo.png"
+                alt="UCC"
+                className="h-full w-full object-contain"
+              />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">Bienestar</h1>
-              <p className="text-white/70 text-sm">Universitario</p>
+              <h1 className="text-2xl font-bold text-white">Bienestar UCC</h1>
+              <p className="text-white/70 text-sm">Universidad Cooperativa de Colombia</p>
             </div>
           </div>
 
@@ -301,11 +358,15 @@ export default function Auth() {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-4">
-              <GraduationCap className="h-8 w-8 text-primary-foreground" />
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-md mb-4 p-2">
+              <img
+                src="/logo.png"
+                alt="UCC"
+                className="h-full w-full object-contain"
+              />
             </div>
-            <h1 className="text-2xl font-bold">Bienestar Universitario</h1>
-            <p className="text-muted-foreground mt-1">Sistema de Gestión</p>
+            <h1 className="text-2xl font-bold">Bienestar UCC</h1>
+            <p className="text-muted-foreground mt-1">Universidad Cooperativa de Colombia</p>
           </div>
 
           {view === "login" ? (
@@ -373,6 +434,21 @@ export default function Auth() {
                     )}
                   </Button>
                 </form>
+
+                {verificationEmail && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <p className="font-medium">Tu correo aún no está verificado.</p>
+                    <p className="mt-1">Te enviamos un enlace a: {verificationEmail}</p>
+                    <Button
+                      variant="outline"
+                      className="mt-3 w-full"
+                      onClick={handleResendVerification}
+                      disabled={isResendingVerification}
+                    >
+                      {isResendingVerification ? "Reenviando..." : "Reenviar verificación"}
+                    </Button>
+                  </div>
+                )}
               </CardContent>
               <CardFooter className="flex flex-col gap-4 border-t pt-6 bg-muted/20">
                 <div className="text-center text-sm text-muted-foreground">

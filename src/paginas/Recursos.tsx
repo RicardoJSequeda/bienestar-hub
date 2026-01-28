@@ -9,9 +9,11 @@ import { Label } from "@/componentes/ui/label";
 import { Textarea } from "@/componentes/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/componentes/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/componentes/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/componentes/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/componentes/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/componentes/ui/dropdown-menu";
 import { toast } from "@/ganchos/usar-toast";
+import { validarRecurso } from "@/utilidades/validaciones";
 import { Plus, Search, MoreVertical, Pencil, Trash2, Package, Loader2 } from "lucide-react";
 import { ImageUpload } from "@/componentes/ui/ImageUpload";
 
@@ -44,6 +46,7 @@ export default function AdminResources() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [resourceToDelete, setResourceToDelete] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -107,8 +110,13 @@ export default function AdminResources() {
   };
 
   const handleSave = async () => {
-    if (!formData.name.trim()) {
-      toast({ title: "Error", description: "El nombre es requerido", variant: "destructive" });
+    const validationError = validarRecurso({
+      nombre: formData.name,
+      categoriaId: formData.category_id || null,
+    });
+
+    if (validationError) {
+      toast({ title: "Error", description: validationError, variant: "destructive" });
       return;
     }
 
@@ -144,16 +152,21 @@ export default function AdminResources() {
     setIsSaving(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("¿Estás seguro de eliminar este recurso?")) return;
+  const handleDelete = (id: string) => {
+    setResourceToDelete(id);
+  };
 
-    const { error } = await supabase.from("resources").delete().eq("id", id);
+  const confirmDelete = async () => {
+    if (!resourceToDelete) return;
+
+    const { error } = await supabase.from("resources").delete().eq("id", resourceToDelete);
     if (error) {
       toast({ title: "Error", description: "No se pudo eliminar el recurso", variant: "destructive" });
     } else {
       toast({ title: "Eliminado", description: "Recurso eliminado correctamente" });
       fetchResources();
     }
+    setResourceToDelete(null);
   };
 
   const getStatusBadge = (status: string) => {
@@ -374,6 +387,26 @@ export default function AdminResources() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={!!resourceToDelete} onOpenChange={() => setResourceToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción eliminará el recurso permanentemente. No se puede deshacer.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );

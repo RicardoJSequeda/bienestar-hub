@@ -64,71 +64,83 @@ export function AdminDashboard() {
       // Run proactive alerts check
       runAllChecks();
       try {
-        // Fetch resource counts
-        const { count: totalResources } = await supabase
-          .from("resources")
-          .select("*", { count: "exact", head: true });
+        // Ejecutar todas las queries en paralelo para mejor rendimiento
+        const [
+          totalResourcesResult,
+          availableResourcesResult,
+          pendingLoansCountResult,
+          activeLoansCountResult,
+          pendingLoansDataResult,
+          upcomingEventsCountResult,
+          totalStudentsResult,
+          hoursDataResult,
+        ] = await Promise.all([
+          // Fetch resource counts
+          supabase
+            .from("resources")
+            .select("*", { count: "exact", head: true }),
 
-        const { count: availableResources } = await supabase
-          .from("resources")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "available");
+          supabase
+            .from("resources")
+            .select("*", { count: "exact", head: true })
+            .eq("status", "available"),
 
-        // Fetch loan counts
-        const { count: pendingLoansCount } = await supabase
-          .from("loans")
-          .select("*", { count: "exact", head: true })
-          .eq("status", "pending");
+          // Fetch loan counts
+          supabase
+            .from("loans")
+            .select("*", { count: "exact", head: true })
+            .eq("status", "pending"),
 
-        const { count: activeLoansCount } = await supabase
-          .from("loans")
-          .select("*", { count: "exact", head: true })
-          .in("status", ["approved", "active"]);
+          supabase
+            .from("loans")
+            .select("*", { count: "exact", head: true })
+            .in("status", ["approved", "active"]),
 
-        // Fetch pending loans details
-        const { data: pendingLoansData } = await supabase
-          .from("loans")
-          .select(`
-            id,
-            requested_at,
-            profiles:user_id(full_name),
-            resources:resource_id(name)
-          `)
-          .eq("status", "pending")
-          .order("requested_at", { ascending: true })
-          .limit(5);
+          // Fetch pending loans details
+          supabase
+            .from("loans")
+            .select(`
+              id,
+              requested_at,
+              profiles!loans_user_id_fkey(full_name),
+              resources!loans_resource_id_fkey(name)
+            `)
+            .eq("status", "pending")
+            .order("requested_at", { ascending: true })
+            .limit(5),
 
-        // Fetch upcoming events
-        const { count: upcomingEventsCount } = await supabase
-          .from("events")
-          .select("*", { count: "exact", head: true })
-          .gte("start_date", new Date().toISOString())
-          .eq("is_active", true);
+          // Fetch upcoming events
+          supabase
+            .from("events")
+            .select("*", { count: "exact", head: true })
+            .gte("start_date", new Date().toISOString())
+            .eq("is_active", true),
 
-        // Fetch total students
-        const { count: totalStudents } = await supabase
-          .from("user_roles")
-          .select("*", { count: "exact", head: true })
-          .eq("role", "student");
+          // Fetch total students
+          supabase
+            .from("user_roles")
+            .select("*", { count: "exact", head: true })
+            .eq("role", "student"),
 
-        // Fetch total hours awarded
-        const { data: hoursData } = await supabase
-          .from("wellness_hours")
-          .select("hours");
+          // Fetch total hours awarded
+          supabase
+            .from("wellness_hours")
+            .select("hours"),
+        ]);
 
-        const totalHoursAwarded = hoursData?.reduce((sum, h) => sum + Number(h.hours), 0) || 0;
+        const totalHoursAwarded = hoursDataResult.data?.reduce((sum, h) => sum + Number(h.hours), 0) || 0;
 
         setStats({
-          totalResources: totalResources || 0,
-          availableResources: availableResources || 0,
-          pendingLoans: pendingLoansCount || 0,
-          activeLoans: activeLoansCount || 0,
-          upcomingEvents: upcomingEventsCount || 0,
-          totalStudents: totalStudents || 0,
+          totalResources: totalResourcesResult.count || 0,
+          availableResources: availableResourcesResult.count || 0,
+          pendingLoans: pendingLoansCountResult.count || 0,
+          activeLoans: activeLoansCountResult.count || 0,
+          upcomingEvents: upcomingEventsCountResult.count || 0,
+          totalStudents: totalStudentsResult.count || 0,
           totalHoursAwarded,
         });
 
-        setPendingLoans(pendingLoansData as unknown as PendingLoan[] || []);
+        setPendingLoans(pendingLoansDataResult.data as unknown as PendingLoan[] || []);
       } catch (error) {
         console.error("Error fetching admin stats:", error);
       } finally {
@@ -344,7 +356,7 @@ export function AdminDashboard() {
       {/* Bottom Row - Alerts */}
       <div className="grid gap-6 lg:grid-cols-2">
         <AlertsPanel />
-        
+
         {/* System Overview */}
         <Card>
           <CardHeader>

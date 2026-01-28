@@ -11,7 +11,7 @@ import { Textarea } from "@/componentes/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/componentes/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/componentes/ui/select";
 import { toast } from "@/ganchos/usar-toast";
-import { Search, Clock, CheckCircle, XCircle, Package, Loader2, ArrowRightLeft, Plus, AlertTriangle, Ban, Zap } from "lucide-react";
+import { Search, Clock, CheckCircle, XCircle, Package, Loader2, ArrowRightLeft, Plus, AlertTriangle, Ban, Zap, CalendarPlus, Filter, ChevronDown, ChevronUp } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/utilidades/utilidades";
@@ -19,6 +19,7 @@ import { LoanStatusBadge } from "@/componentes/prestamos/InsigniaEstadoPrestamo"
 import { TrustScoreBadge } from "@/componentes/prestamos/InsigniaPuntajeConfianza";
 import { LoanTimelineCard } from "@/componentes/prestamos/TarjetaLineaTiempoPrestamo";
 import { PresentialLoanDialog } from "@/componentes/prestamos/DialogoPrestamoPresencial";
+import { DamageManagementDialog } from "@/componentes/prestamos/DialogoGestionDanos";
 import { useSystemSettings } from "@/ganchos/usar-configuracion-sistema";
 
 interface Loan {
@@ -30,6 +31,7 @@ interface Loan {
   delivered_at: string | null;
   returned_at: string | null;
   due_date: string | null;
+  original_due_date: string | null;
   pickup_deadline: string | null;
   admin_notes: string | null;
   damage_notes: string | null;
@@ -38,6 +40,13 @@ interface Loan {
   decision_source: "automatic" | "human" | "exception";
   trust_score_at_request: number | null;
   created_by_admin: boolean;
+  // Campos de extensión
+  extension_requested: boolean;
+  extension_reason: string | null;
+  extension_approved: boolean | null;
+  // Campos de calificación
+  rating: number | null;
+  rating_comment: string | null;
   profiles: { full_name: string; email: string; student_code: string | null };
   resources: {
     id: string;
@@ -66,14 +75,18 @@ export default function AdminLoans() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
-  const [actionType, setActionType] = useState<"approve" | "reject" | "deliver" | "return" | "damage" | "lost" | null>(null);
+  const [actionType, setActionType] = useState<"approve" | "reject" | "deliver" | "return" | "damage" | "lost" | "extension" | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
   const [damageNotes, setDamageNotes] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [extensionNewDueDate, setExtensionNewDueDate] = useState("");
+  const [extensionApproval, setExtensionApproval] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("pending");
   const [showPresentialDialog, setShowPresentialDialog] = useState(false);
   const [showTimelineFor, setShowTimelineFor] = useState<Loan | null>(null);
+  const [showDamageDialog, setShowDamageDialog] = useState(false);
+  const [damageLoan, setDamageLoan] = useState<Loan | null>(null);
 
   useEffect(() => {
     fetchLoans();
@@ -105,12 +118,13 @@ export default function AdminLoans() {
       .from("loans")
       .select(`
         *,
-        resources:resource_id (
+        resources!loans_resource_id_fkey (
           id,
           name,
-          image_url,
-          resource_categories (name, base_wellness_hours, hourly_factor)
-        )
+          category_id,
+          resource_categories!resources_category_id_fkey (name)
+        ),
+        profiles!loans_user_id_fkey (full_name, email, student_code)
       `)
       .order("requested_at", { ascending: false });
 
@@ -296,16 +310,65 @@ export default function AdminLoans() {
     setAdminNotes("");
     setDamageNotes("");
     setDueDate("");
+    setExtensionNewDueDate("");
+    setExtensionApproval(null);
     setIsProcessing(false);
   };
 
   const openActionDialog = (loan: Loan, type: typeof actionType) => {
+    // Para daños y pérdidas, usar el diálogo mejorado
+    if (type === "damage" || type === "lost") {
+      setDamageLoan(loan);
+      setShowDamageDialog(true);
+      return;
+    }
     setSelectedLoan(loan);
     setActionType(type);
     setAdminNotes(loan.admin_notes || "");
     if (type === "deliver") {
       setDueDate(format(addDays(new Date(), settings.max_loan_days), "yyyy-MM-dd"));
     }
+    if (type === "extension" && loan.due_date) {
+      // Sugerir fecha 7 días después de la fecha actual de vencimiento
+      setExtensionNewDueDate(format(addDays(new Date(loan.due_date), 7), "yyyy-MM-dd"));
+    }
+  };
+
+  // Manejar aprobación/rechazo de extensión
+  const handleExtensionDecision = async () => {
+    if (!selectedLoan || extensionApproval === null || !user) return;
+    setIsProcessing(true);
+
+    const newDueDate = extensionApproval && extensionNewDueDate
+      ? new Date(extensionNewDueDate).toISOString()
+      : null;
+
+    const { error } = await (supabase.rpc as any)("approve_loan_extension", {
+      p_loan_id: selectedLoan.id,
+      p_approved: extensionApproval,
+      p_admin_id: user.id,
+      p_new_due_date: newDueDate,
+      p_admin_notes: adminNotes || null,
+    });
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo procesar la extensión",
+      });
+    } else {
+      toast({
+        title: "Éxito",
+        description: extensionApproval
+          ? "Extensión aprobada correctamente"
+          : "Extensión rechazada",
+      });
+      fetchLoans();
+    }
+
+    setIsProcessing(false);
+    closeDialog();
   };
 
   // Categorize loans
@@ -443,6 +506,12 @@ export default function AdminLoans() {
                     <CheckCircle className="mr-1 h-3 w-3" />
                     Devolver
                   </Button>
+                  {loan.extension_requested && loan.extension_approved === null && (
+                    <Button size="sm" variant="default" onClick={() => openActionDialog(loan, "extension")}>
+                      <CalendarPlus className="mr-1 h-3 w-3" />
+                      Revisar extensión
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" onClick={() => openActionDialog(loan, "damage")}>
                     <AlertTriangle className="mr-1 h-3 w-3" />
                     Daño
@@ -468,6 +537,7 @@ export default function AdminLoans() {
       case "return": return "Registrar Devolución";
       case "damage": return "Reportar Daño";
       case "lost": return "Reportar Pérdida";
+      case "extension": return "Revisar Solicitud de Extensión";
       default: return "";
     }
   };
@@ -625,6 +695,53 @@ export default function AdminLoans() {
                 </div>
               )}
 
+              {actionType === "extension" && selectedLoan && (
+                <div className="space-y-4">
+                  <div className="rounded-xl bg-primary/5 border border-primary/10 p-4">
+                    <p className="text-sm font-medium mb-2">Solicitud de extensión</p>
+                    <p className="text-xs text-muted-foreground mb-3">{selectedLoan.extension_reason}</p>
+                    <div className="space-y-2 text-sm">
+                      <p><strong>Fecha actual de vencimiento:</strong> {selectedLoan.due_date ? format(new Date(selectedLoan.due_date), "d MMM yyyy", { locale: es }) : "N/A"}</p>
+                      {selectedLoan.original_due_date && (
+                        <p className="text-muted-foreground"><strong>Fecha original:</strong> {format(new Date(selectedLoan.original_due_date), "d MMM yyyy", { locale: es })}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={extensionApproval === true ? "default" : "outline"}
+                      onClick={() => setExtensionApproval(true)}
+                      className="flex-1"
+                    >
+                      Aprobar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={extensionApproval === false ? "destructive" : "outline"}
+                      onClick={() => setExtensionApproval(false)}
+                      className="flex-1"
+                    >
+                      Rechazar
+                    </Button>
+                  </div>
+
+                  {extensionApproval === true && (
+                    <div className="space-y-2">
+                      <Label htmlFor="extension-due-date">Nueva fecha de vencimiento *</Label>
+                      <Input
+                        id="extension-due-date"
+                        type="date"
+                        value={extensionNewDueDate}
+                        onChange={(e) => setExtensionNewDueDate(e.target.value)}
+                        min={selectedLoan.due_date ? format(new Date(selectedLoan.due_date), "yyyy-MM-dd") : undefined}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="notes">Notas (opcional)</Label>
                 <Textarea
@@ -640,15 +757,27 @@ export default function AdminLoans() {
               <Button variant="outline" onClick={closeDialog} className="w-full sm:w-auto">
                 Cancelar
               </Button>
-              <Button
-                onClick={handleAction}
-                disabled={isProcessing || (actionType === "damage" && !damageNotes.trim())}
-                variant={actionType === "reject" || actionType === "damage" || actionType === "lost" ? "destructive" : "default"}
-                className="w-full sm:w-auto"
-              >
-                {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Confirmar
-              </Button>
+              {actionType === "extension" ? (
+                <Button
+                  onClick={handleExtensionDecision}
+                  disabled={isProcessing || extensionApproval === null || (extensionApproval === true && !extensionNewDueDate)}
+                  variant={extensionApproval === false ? "destructive" : "default"}
+                  className="w-full sm:w-auto"
+                >
+                  {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {extensionApproval === true ? "Aprobar extensión" : extensionApproval === false ? "Rechazar extensión" : "Confirmar"}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleAction}
+                  disabled={isProcessing || (actionType === "damage" && !damageNotes.trim())}
+                  variant={actionType === "reject" || actionType === "damage" || actionType === "lost" ? "destructive" : "default"}
+                  className="w-full sm:w-auto"
+                >
+                  {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Confirmar
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -670,6 +799,19 @@ export default function AdminLoans() {
           onOpenChange={setShowPresentialDialog}
           onSuccess={fetchLoans}
         />
+
+        {/* Damage Management Dialog */}
+        {damageLoan && (
+          <DamageManagementDialog
+            loan={damageLoan}
+            isOpen={showDamageDialog}
+            onClose={() => {
+              setShowDamageDialog(false);
+              setDamageLoan(null);
+            }}
+            onSuccess={fetchLoans}
+          />
+        )}
       </div>
     </DashboardLayout>
   );
