@@ -11,6 +11,7 @@ import { Textarea } from "@/componentes/ui/textarea";
 import { Switch } from "@/componentes/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/componentes/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/componentes/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/componentes/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/componentes/ui/table";
 import { Checkbox } from "@/componentes/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/componentes/ui/dropdown-menu";
@@ -68,6 +69,8 @@ export default function AdminEvents() {
   const [waitlistEvent, setWaitlistEvent] = useState<Event | null>(null);
   const [waitlist, setWaitlist] = useState<Array<{ id: string; position: number; status: string; user_id: string; profiles: { full_name: string; email: string } }>>([]);
   const [isLoadingWaitlist, setIsLoadingWaitlist] = useState(false);
+  const [waitlistToRemove, setWaitlistToRemove] = useState<string | null>(null);
+  const [eventToAction, setEventToAction] = useState<Event | null>(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -89,9 +92,14 @@ export default function AdminEvents() {
 
   const fetchEvents = async () => {
     try {
+      // Optimizacion: Obtener conteo directamente desde la BD en lugar de traer todos los registros
       const { data: eventsData, error } = await supabase
         .from("events")
-        .select(`*, event_categories (id, name)`)
+        .select(`
+          *,
+          event_categories (id, name),
+          event_enrollments (count)
+        `)
         .order("start_date", { ascending: false });
 
       if (error) {
@@ -100,23 +108,10 @@ export default function AdminEvents() {
         return;
       }
 
-      // Fetch enrollment counts more efficiently using a single query grouping by event_id
-      const { data: enrollmentCounts, error: countError } = await supabase
-        .from("event_enrollments")
-        .select("event_id");
-
-      if (countError) {
-        console.error("Error fetching enrollment counts:", countError);
-      }
-
-      const countMap: Record<string, number> = {};
-      enrollmentCounts?.forEach((e) => {
-        countMap[e.event_id] = (countMap[e.event_id] || 0) + 1;
-      });
-
-      const eventsWithCounts = eventsData?.map((event) => ({
+      // Transformar datos para manejar el count que viene como objeto
+      const eventsWithCounts = eventsData?.map((event: any) => ({
         ...event,
-        enrollment_count: countMap[event.id] || 0,
+        enrollment_count: event.event_enrollments?.[0]?.count || 0,
       }));
 
       setEvents(eventsWithCounts as Event[]);
@@ -240,17 +235,17 @@ export default function AdminEvents() {
     setIsSaving(false);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     const event = events.find(e => e.id === id);
     if (!event) return;
+    setEventToAction(event);
+  };
 
-    const action = event.is_active
-      ? confirm("¿Estás seguro de cancelar este evento? Se notificará a todos los inscritos.")
-      : confirm("¿Estás seguro de eliminar permanentemente este evento?");
+  const confirmEventAction = async () => {
+    if (!eventToAction) return;
+    const id = eventToAction.id;
 
-    if (!action) return;
-
-    if (event.is_active) {
+    if (eventToAction.is_active) {
       // Cancelar evento (desactivar y notificar)
       const { error: updateError } = await supabase
         .from("events")
@@ -275,7 +270,7 @@ export default function AdminEvents() {
             user_id: enrollment.user_id,
             type: "event_cancelled",
             title: "Evento cancelado",
-            message: `El evento "${event.title}" ha sido cancelado.`,
+            message: `El evento "${eventToAction.title}" ha sido cancelado.`,
             link: "/events",
             data: { event_id: id },
           })) as any
@@ -296,8 +291,10 @@ export default function AdminEvents() {
       toast({ title: "Eliminado", description: "Evento eliminado permanentemente" });
     }
 
+    setEventToAction(null);
     fetchEvents();
   };
+
 
   const handleAttendance = async (enrollment: Enrollment, attended: boolean) => {
     if (!attendanceEvent || !user) return;
@@ -403,13 +400,18 @@ export default function AdminEvents() {
     }
   };
 
-  const handleRemoveFromWaitlist = async (waitlistId: string) => {
-    if (!confirm("¿Estás seguro de eliminar esta posición de la lista de espera?")) return;
+  const handleRemoveFromWaitlist = (waitlistId: string) => {
+    const item = waitlist.find(w => w.id === waitlistId);
+    if (item) setWaitlistToRemove(waitlistId);
+  };
+
+  const confirmWaitlistRemoval = async () => {
+    if (!waitlistToRemove) return;
 
     const { error } = await supabase
       .from("event_waitlist")
       .delete()
-      .eq("id", waitlistId);
+      .eq("id", waitlistToRemove);
 
     if (error) {
       toast({ title: "Error", description: "No se pudo eliminar", variant: "destructive" });
@@ -417,6 +419,7 @@ export default function AdminEvents() {
       toast({ title: "Eliminado", description: "Posición eliminada de la lista" });
       openWaitlistDialog(waitlistEvent!);
     }
+    setWaitlistToRemove(null);
   };
 
   const filteredEvents = events.filter((e) =>
@@ -814,6 +817,52 @@ export default function AdminEvents() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Event Action Dialog */}
+        <AlertDialog open={!!eventToAction} onOpenChange={() => setEventToAction(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {eventToAction?.is_active ? "¿Cancelar evento?" : "¿Eliminar evento permanentemente?"}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {eventToAction?.is_active
+                  ? "Se notificará a todos los estudiantes inscritos. Esta acción no elimina los registros históricos."
+                  : "Esta acción no se puede deshacer. Se perderá toda la información relacionada con este evento."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmEventAction}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {eventToAction?.is_active ? "Cancelar Evento" : "Eliminar"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Waitlist Removal Dialog */}
+        <AlertDialog open={!!waitlistToRemove} onOpenChange={() => setWaitlistToRemove(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar de lista de espera?</AlertDialogTitle>
+              <AlertDialogDescription>
+                El estudiante perderá su posición y deberá inscribirse nuevamente.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmWaitlistRemoval}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );

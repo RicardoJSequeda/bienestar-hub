@@ -8,6 +8,7 @@ import { Label } from "@/componentes/ui/label";
 import { Textarea } from "@/componentes/ui/textarea";
 import { Switch } from "@/componentes/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/componentes/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/componentes/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/componentes/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/componentes/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/componentes/ui/dropdown-menu";
@@ -48,6 +49,7 @@ export default function AdminSettings() {
   const [dialogType, setDialogType] = useState<"resource" | "event" | null>(null);
   const [editingItem, setEditingItem] = useState<ResourceCategory | EventCategory | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ type: "resource" | "event"; id: string } | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -154,11 +156,15 @@ export default function AdminSettings() {
     setIsSaving(false);
   };
 
-  const handleDelete = async (type: "resource" | "event", id: string) => {
-    if (!confirm("¿Estás seguro de eliminar esta categoría?")) return;
+  const handleDelete = (type: "resource" | "event", id: string) => {
+    setItemToDelete({ type, id });
+  };
 
-    const table = type === "resource" ? "resource_categories" : "event_categories";
-    const { error } = await supabase.from(table).delete().eq("id", id);
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+
+    const table = itemToDelete.type === "resource" ? "resource_categories" : "event_categories";
+    const { error } = await supabase.from(table).delete().eq("id", itemToDelete.id);
 
     if (error) {
       toast({ title: "Error", description: "No se pudo eliminar la categoría", variant: "destructive" });
@@ -166,6 +172,7 @@ export default function AdminSettings() {
       toast({ title: "Eliminado", description: "Categoría eliminada correctamente" });
       fetchCategories();
     }
+    setItemToDelete(null);
   };
 
   return (
@@ -491,6 +498,27 @@ export default function AdminSettings() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar categoría?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Se eliminará la categoría {itemToDelete?.type === "resource" ? "de recursos" : "de eventos"}.
+                Asegúrate de que no haya items asociados antes de eliminar.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );

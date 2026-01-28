@@ -11,8 +11,11 @@ import {
   BarChart3,
   Settings,
   Menu,
+  ShieldAlert,
+  FileText,
+  Download,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/componentes/ui/sheet";
 import { Button } from "@/componentes/ui/button";
 import { Avatar, AvatarFallback } from "@/componentes/ui/avatar";
@@ -29,6 +32,7 @@ const studentNavItems = [
 const studentMoreItems = [
   { title: "Mi Perfil", icon: Settings, path: "/profile" },
   { title: "Mis Horas", icon: Clock, path: "/my-hours" },
+  { title: "Mis Sanciones", icon: ShieldAlert, path: "/my-sanctions" },
 ];
 
 const adminNavItems = [
@@ -42,6 +46,8 @@ const adminNavItems = [
 const adminMoreItems = [
   { title: "Mi Perfil", icon: Settings, path: "/profile" },
   { title: "Usuarios", icon: Users, path: "/admin/users" },
+  { title: "Sanciones", icon: ShieldAlert, path: "/admin/sanctions" },
+  { title: "Políticas", icon: FileText, path: "/admin/policies" },
   { title: "Reportes", icon: BarChart3, path: "/admin/reports" },
   { title: "Configuración", icon: Settings, path: "/admin/settings" },
 ];
@@ -51,6 +57,25 @@ export function MobileBottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response to the install prompt: ${outcome}`);
+    setDeferredPrompt(null);
+    setIsMoreOpen(false);
+  };
 
   const navItems = isAdmin ? adminNavItems : studentNavItems;
   const moreItems = isAdmin ? adminMoreItems : studentMoreItems;
@@ -71,6 +96,7 @@ export function MobileBottomNav() {
   };
 
   const getInitials = (name: string) => {
+    if (!name) return "U";
     return name
       .split(" ")
       .map((n) => n[0])
@@ -118,7 +144,7 @@ export function MobileBottomNav() {
 
       {/* More Sheet */}
       <Sheet open={isMoreOpen} onOpenChange={setIsMoreOpen}>
-        <SheetContent side="bottom" className="rounded-t-3xl">
+        <SheetContent side="bottom" className="rounded-t-3xl max-h-[85vh] overflow-y-auto">
           <SheetHeader className="pb-4">
             <SheetTitle className="text-left">Menú</SheetTitle>
           </SheetHeader>
@@ -145,6 +171,19 @@ export function MobileBottomNav() {
             </Badge>
           </div>
 
+          {/* PWA Install Button */}
+          {deferredPrompt && (
+            <div className="mb-4">
+              <Button
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg"
+                onClick={handleInstallClick}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Instalar Aplicación
+              </Button>
+            </div>
+          )}
+
           {/* More menu items */}
           <div className="space-y-1">
             {moreItems.map((item) => (
@@ -164,7 +203,7 @@ export function MobileBottomNav() {
           </div>
 
           {/* Sign out */}
-          <div className="pt-4 mt-4 border-t">
+          <div className="pt-4 mt-4 border-t pb-8">
             <Button
               variant="ghost"
               className="w-full justify-start h-12 text-destructive hover:text-destructive hover:bg-destructive/10"

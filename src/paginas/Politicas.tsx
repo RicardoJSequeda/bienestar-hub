@@ -14,6 +14,7 @@ import {
     DialogHeader,
     DialogTitle
 } from "@/componentes/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/componentes/ui/alert-dialog";
 import {
     Table,
     TableBody,
@@ -43,6 +44,7 @@ export default function AdminPolicies() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [policyToDelete, setPolicyToDelete] = useState<string | null>(null);
 
     const [formData, setFormData] = useState({
         title: "",
@@ -122,13 +124,17 @@ export default function AdminPolicies() {
         setIsSaving(false);
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm("¿Estás seguro de eliminar esta política?")) return;
+    const handleDelete = (id: string) => {
+        setPolicyToDelete(id);
+    };
+
+    const confirmDelete = async () => {
+        if (!policyToDelete) return;
 
         const { error } = await supabase
             .from("institutional_policies")
             .delete()
-            .eq("id", id);
+            .eq("id", policyToDelete);
 
         if (error) {
             toast({ title: "Error", description: "No se pudo eliminar la política", variant: "destructive" });
@@ -136,6 +142,7 @@ export default function AdminPolicies() {
             toast({ title: "Eliminado", description: "Política eliminada correctamente" });
             fetchPolicies();
         }
+        setPolicyToDelete(null);
     };
 
     const toggleActive = async (policy: Policy) => {
@@ -295,6 +302,26 @@ export default function AdminPolicies() {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
+
+                <AlertDialog open={!!policyToDelete} onOpenChange={() => setPolicyToDelete(null)}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>¿Eliminar política?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Esta acción eliminará la política y no se puede deshacer.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={confirmDelete}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                                Eliminar
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </div>
         </DashboardLayout>
     );

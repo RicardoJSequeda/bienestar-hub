@@ -29,6 +29,10 @@ const pageTitles: Record<string, string> = {
   "/admin/users": "Usuarios",
   "/admin/reports": "Reportes",
   "/admin/settings": "Configuración",
+  "/admin/sanctions": "Sanciones",
+  "/admin/policies": "Políticas Institucionales",
+  "/my-sanctions": "Mis Sanciones",
+  "/notifications": "Notificaciones",
 };
 
 export function DashboardLayout({ children, requireAdmin = false }: DashboardLayoutProps) {

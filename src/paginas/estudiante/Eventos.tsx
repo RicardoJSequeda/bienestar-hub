@@ -70,12 +70,13 @@ export default function StudentEvents() {
         .select("*");
       if (categoriesData) setCategories(categoriesData);
 
-      // Fetch events
+      // Fetch events with server-side count
       const { data: eventsData, error } = await supabase
         .from("events")
         .select(`
           *,
-          event_categories (id, name, icon)
+          event_categories (id, name, icon),
+          event_enrollments (count)
         `)
         .eq("is_active", true)
         .gte("end_date", new Date().toISOString())
@@ -83,12 +84,7 @@ export default function StudentEvents() {
 
       if (error) throw error;
 
-      // Fetch enrollment counts
-      const { data: enrollmentCounts } = await supabase
-        .from("event_enrollments")
-        .select("event_id");
-
-      // Fetch user's enrollments
+      // Fetch user's enrollments (Solo IDs necesarios)
       const { data: userEnrollments } = await supabase
         .from("event_enrollments")
         .select("event_id")
@@ -109,17 +105,11 @@ export default function StudentEvents() {
       });
       setMyWaitlist(waitlistMap);
 
-      // Count enrollments per event
-      const countMap: Record<string, number> = {};
-      enrollmentCounts?.forEach((e) => {
-        countMap[e.event_id] = (countMap[e.event_id] || 0) + 1;
-      });
-
-      const eventsWithCounts = eventsData?.map((event) => {
+      const eventsWithCounts = eventsData?.map((event: any) => {
         const waitlistInfo = waitlistMap[event.id];
         return {
           ...event,
-          enrollment_count: countMap[event.id] || 0,
+          enrollment_count: event.event_enrollments?.[0]?.count || 0,
           is_enrolled: enrolledEventIds.includes(event.id),
           waitlist_position: waitlistInfo?.position || null,
           is_in_waitlist: !!waitlistInfo,
@@ -471,7 +461,7 @@ export default function StudentEvents() {
                           <div className="flex items-center text-sm text-primary font-medium">
                             <Clock3 className="w-4 h-4 mr-2" />
                             <span>
-                              {isNotified 
+                              {isNotified
                                 ? "¡Cupo disponible! (24h para inscribirte)"
                                 : `Lista de espera: Posición #${event.waitlist_position}`}
                             </span>
@@ -485,10 +475,10 @@ export default function StudentEvents() {
                             Cancelar
                           </Button>
                         ) : isNotified ? (
-                          <Button 
-                            className="w-full rounded-xl font-bold bg-primary hover:bg-primary/90" 
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
+                          <Button
+                            className="w-full rounded-xl font-bold bg-primary hover:bg-primary/90"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               // Obtener waitlist_id desde notificación o buscar
                               const waitlistEntry = Object.entries(myWaitlist).find(([id]) => id === event.id);
                               if (waitlistEntry) {
@@ -501,19 +491,19 @@ export default function StudentEvents() {
                             Inscribirse Ahora
                           </Button>
                         ) : event.is_in_waitlist ? (
-                          <Button 
-                            variant="outline" 
-                            className="w-full" 
+                          <Button
+                            variant="outline"
+                            className="w-full"
                             onClick={(e) => { e.stopPropagation(); handleLeaveWaitlist(event); }}
                           >
                             <X className="w-4 h-4 mr-2" />
                             Salir de Lista
                           </Button>
                         ) : isFull ? (
-                          <Button 
-                            variant="outline" 
-                            className="w-full rounded-xl font-bold" 
-                            disabled={isProcessing} 
+                          <Button
+                            variant="outline"
+                            className="w-full rounded-xl font-bold"
+                            disabled={isProcessing}
                             onClick={(e) => { e.stopPropagation(); handleJoinWaitlist(event); }}
                           >
                             <Clock3 className="w-4 h-4 mr-2" />

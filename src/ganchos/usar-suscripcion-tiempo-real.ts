@@ -8,20 +8,28 @@ export function useRealtimeSubscription(
     filter?: string
 ) {
     useEffect(() => {
+        let timeout: NodeJS.Timeout;
+
+        const handleRealtimeEvent = (payload: any) => {
+            console.log(`Change received on ${table}:`, payload);
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                onChange();
+            }, 1000); // Wait 1s of silence before refreshing
+        };
+
         const channel = supabase
             .channel(`public:${table}:${filter || 'all'}`)
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table, filter },
-                (payload) => {
-                    console.log(`Change received on ${table}:`, payload);
-                    onChange();
-                }
+                handleRealtimeEvent
             )
             .subscribe();
 
         return () => {
             supabase.removeChannel(channel);
+            clearTimeout(timeout);
         };
-    }, [table, filter]); // Removed onChange from dependency to avoid loop if not memoized, relying on closure
+    }, [table, filter]); // onChange omitted to prevent re-subscription loops
 }

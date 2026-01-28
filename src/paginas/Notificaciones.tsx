@@ -22,6 +22,16 @@ import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "@/ganchos/usar-toast";
 import { Link } from "react-router-dom";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/componentes/ui/alert-dialog";
 
 interface Notification {
     id: string;
@@ -39,6 +49,8 @@ export default function NotificationsPage() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [filter, setFilter] = useState<"all" | "unread">("all");
+
+    const [notificationToDelete, setNotificationToDelete] = useState<string | null>(null);
 
     useEffect(() => {
         if (user) {
@@ -97,16 +109,23 @@ export default function NotificationsPage() {
         }
     };
 
-    const deleteNotification = async (id: string) => {
+    const confirmDelete = async () => {
+        if (!notificationToDelete) return;
+
         const { error } = await supabase
             .from("notifications")
             .delete()
-            .eq("id", id);
+            .eq("id", notificationToDelete);
 
         if (!error) {
-            setNotifications(prev => prev.filter(n => n.id !== id));
+            setNotifications(prev => prev.filter(n => n.id !== notificationToDelete));
             toast({ title: "Eliminado", description: "Notificación eliminada" });
         }
+        setNotificationToDelete(null);
+    };
+
+    const handleDeleteClick = (id: string) => {
+        setNotificationToDelete(id);
     };
 
     const getIcon = (type: string) => {
@@ -214,7 +233,7 @@ export default function NotificationsPage() {
                                                         className="h-8 w-8 text-muted-foreground hover:text-destructive"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            deleteNotification(n.id);
+                                                            handleDeleteClick(n.id);
                                                         }}
                                                     >
                                                         <Trash2 className="h-4 w-4" />
@@ -228,6 +247,23 @@ export default function NotificationsPage() {
                         )}
                     </CardContent>
                 </Card>
+
+                <AlertDialog open={!!notificationToDelete} onOpenChange={() => setNotificationToDelete(null)}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>¿Eliminar notificación?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Esta acción no se puede deshacer.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                Eliminar
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </div>
         </DashboardLayout>
     );
