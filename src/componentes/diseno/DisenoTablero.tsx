@@ -77,6 +77,7 @@ export function DashboardLayout({ children, requireAdmin = false }: DashboardLay
         </header>
 
         {/* Main Content */}
+        <main className="flex-1 overflow-auto pb-20 scroll-smooth-touch overscroll-behavior-contain">
         <main className="flex-1 overflow-y-auto pb-20 scroll-smooth-touch touch-auto">
           <div className="p-4 animate-fade-in">
             {children}
