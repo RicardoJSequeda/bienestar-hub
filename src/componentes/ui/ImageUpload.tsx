@@ -9,7 +9,7 @@ import { toast } from "@/ganchos/usar-toast";
 interface ImageUploadProps {
     value?: string | null;
     onChange: (url: string) => void;
-    bucket: "resource-images" | "event-images" | "category-images" | "profile-avatars";
+    bucket: "resource-images" | "event-images" | "category-images" | "profile-avatars" | "damage-images";
     label?: string;
 }
 

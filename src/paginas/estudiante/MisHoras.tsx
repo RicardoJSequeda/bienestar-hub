@@ -5,13 +5,19 @@ import { DashboardLayout } from "@/componentes/diseno/DisenoTablero";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/componentes/ui/card";
 import { Badge } from "@/componentes/ui/badge";
 import { ProgressRing } from "@/componentes/ui/progress-ring";
-import { Clock, Package, Calendar, TrendingUp, Loader2, Award, Star, Medal, Trophy } from "lucide-react";
+import { Button } from "@/componentes/ui/button";
+import { Input } from "@/componentes/ui/input";
+import { Label } from "@/componentes/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/componentes/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/componentes/ui/collapsible";
+import { startOfDay, endOfDay } from "date-fns";
+import { Clock, Package, Calendar, TrendingUp, Filter, ChevronDown, ChevronUp, Star, Medal, Trophy } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/utilidades/utilidades";
 import { HeroSkeleton, CardSkeleton } from "@/componentes/ui/skeleton-loaders";
-import { useToast } from "@/ganchos/usar-toast";
 import { useRealtimeSubscription } from "@/ganchos/usar-suscripcion-tiempo-real";
+import { CertificateGenerator } from "@/componentes/horas/GeneradorCertificado";
 
 interface WellnessHour {
   id: string;
@@ -43,6 +49,14 @@ export default function MyHours() {
   const [isLoading, setIsLoading] = useState(true);
   const [totalHours, setTotalHours] = useState(0);
   const [hoursByMonth, setHoursByMonth] = useState<HoursByMonth[]>([]);
+
+  // Filtros avanzados
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterSource, setFilterSource] = useState<string>("all");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+  const [sortBy, setSortBy] = useState<"date" | "hours" | "source">("date");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
     if (profile?.user_id) {
@@ -81,6 +95,56 @@ export default function MyHours() {
   useRealtimeSubscription("wellness_hours", fetchHours, `user_id=eq.${profile?.user_id}`);
 
   const progressPercentage = Math.min((totalHours / SEMESTER_GOAL) * 100, 100);
+
+  // Función de filtrado avanzado
+  const applyFilters = (hoursList: WellnessHour[]) => {
+    let filtered = [...hoursList];
+
+    // Filtro por tipo de fuente
+    if (filterSource !== "all") {
+      filtered = filtered.filter(h => h.source_type === filterSource);
+    }
+
+    // Filtro por fecha (rango)
+    if (filterDateFrom) {
+      const fromDate = startOfDay(new Date(filterDateFrom));
+      filtered = filtered.filter(h => {
+        const hourDate = new Date(h.awarded_at);
+        return hourDate >= fromDate;
+      });
+    }
+
+    if (filterDateTo) {
+      const toDate = endOfDay(new Date(filterDateTo));
+      filtered = filtered.filter(h => {
+        const hourDate = new Date(h.awarded_at);
+        return hourDate <= toDate;
+      });
+    }
+
+    // Ordenamiento
+    filtered.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortBy) {
+        case "date":
+          comparison = new Date(a.awarded_at).getTime() - new Date(b.awarded_at).getTime();
+          break;
+        case "hours":
+          comparison = Number(a.hours) - Number(b.hours);
+          break;
+        case "source":
+          comparison = (a.source_type || "").localeCompare(b.source_type || "");
+          break;
+      }
+
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
+
+    return filtered;
+  };
+
+  const displayedHours = applyFilters(hours);
   const hoursFromLoans = hours.filter((h) => h.source_type === "loan").reduce((s, h) => s + Number(h.hours), 0);
   const hoursFromEvents = hours.filter((h) => h.source_type === "event").reduce((s, h) => s + Number(h.hours), 0);
 
@@ -115,15 +179,23 @@ export default function MyHours() {
               Monitorea tu progreso y alcanza la meta del semestre
             </p>
           </div>
-          <div className="flex items-center gap-2 bg-muted/50 px-4 py-2 rounded-full border">
-            <currentLevel.icon className={cn("w-5 h-5", currentLevel.color)} />
-            <span className="font-semibold text-sm">Nivel {currentLevel.name}</span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 bg-muted/50 px-4 py-2 rounded-full border">
+              <currentLevel.icon className={cn("w-5 h-5", currentLevel.color)} />
+              <span className="font-semibold text-sm">Nivel {currentLevel.name}</span>
+            </div>
+            <CertificateGenerator
+              totalHours={totalHours}
+              hoursFromLoans={hoursFromLoans}
+              hoursFromEvents={hoursFromEvents}
+              currentLevel={currentLevel.name}
+              semesterGoal={SEMESTER_GOAL}
+            />
           </div>
         </div>
 
         {/* Hero Progress Card */}
         <Card className="overflow-hidden border-0 shadow-lg relative bg-gradient-to-br from-primary via-primary/90 to-accent text-white">
-          {/* Background Pattern */}
           <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-repeat" />
 
           <CardContent className="p-8 relative z-10">
@@ -162,7 +234,6 @@ export default function MyHours() {
 
         {/* Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Loans Stats */}
           <Card className="border-none shadow-md hover:shadow-lg transition-shadow bg-blue-50/50 dark:bg-blue-900/10">
             <CardContent className="p-6 flex items-center gap-4">
               <div className="rounded-2xl bg-blue-100 dark:bg-blue-900 p-3 text-blue-600 dark:text-blue-300">
@@ -175,7 +246,6 @@ export default function MyHours() {
             </CardContent>
           </Card>
 
-          {/* Events Stats */}
           <Card className="border-none shadow-md hover:shadow-lg transition-shadow bg-purple-50/50 dark:bg-purple-900/10">
             <CardContent className="p-6 flex items-center gap-4">
               <div className="rounded-2xl bg-purple-100 dark:bg-purple-900 p-3 text-purple-600 dark:text-purple-300">
@@ -188,7 +258,6 @@ export default function MyHours() {
             </CardContent>
           </Card>
 
-          {/* Monthly Trend */}
           <Card className="border-none shadow-md md:col-span-2 lg:col-span-1">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
@@ -217,14 +286,134 @@ export default function MyHours() {
           </Card>
         </div>
 
+        {/* Advanced Filters */}
+        <Collapsible
+          open={showFilters}
+          onOpenChange={setShowFilters}
+          className="w-full space-y-2"
+        >
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-sm font-medium flex items-center gap-2">
+              <Filter className="w-4 h-4" /> Búsqueda y Filtros
+            </h3>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-2">
+                {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                {showFilters ? "Ocultar Filtros" : "Mostrar Filtros"}
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+
+          <CollapsibleContent>
+            <Card className="border-none shadow-md overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {/* Fuente */}
+                  <div className="space-y-2">
+                    <Label htmlFor="source" className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Fuente</Label>
+                    <Select value={filterSource} onValueChange={setFilterSource}>
+                      <SelectTrigger id="source" className="bg-muted/30 border-none">
+                        <SelectValue placeholder="Todas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas</SelectItem>
+                        <SelectItem value="loan">Préstamos</SelectItem>
+                        <SelectItem value="event">Eventos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Fecha Desde */}
+                  <div className="space-y-2">
+                    <Label htmlFor="dateFrom" className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Desde</Label>
+                    <Input
+                      id="dateFrom"
+                      type="date"
+                      className="bg-muted/30 border-none"
+                      value={filterDateFrom}
+                      onChange={(e) => setFilterDateFrom(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Fecha Hasta */}
+                  <div className="space-y-2">
+                    <Label htmlFor="dateTo" className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Hasta</Label>
+                    <Input
+                      id="dateTo"
+                      type="date"
+                      className="bg-muted/30 border-none"
+                      value={filterDateTo}
+                      onChange={(e) => setFilterDateTo(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Ordenar Por */}
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Ordenar por</Label>
+                    <div className="flex gap-2">
+                      <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                        <SelectTrigger className="bg-muted/30 border-none flex-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="date">Fecha</SelectItem>
+                          <SelectItem value="hours">Horas</SelectItem>
+                          <SelectItem value="source">Fuente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                      >
+                        {sortOrder === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botón Limpiar Filtros */}
+                {(filterSource !== "all" || filterDateFrom || filterDateTo || sortBy !== "date" || sortOrder !== "desc") && (
+                  <div className="mt-6 flex justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-primary transition-colors"
+                      onClick={() => {
+                        setFilterSource("all");
+                        setFilterDateFrom("");
+                        setFilterDateTo("");
+                        setSortBy("date");
+                        setSortOrder("desc");
+                      }}
+                    >
+                      Limpiar Filtros
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </CollapsibleContent>
+        </Collapsible>
+
         {/* History List */}
         <Card className="border-none shadow-md">
           <CardHeader>
-            <CardTitle>Historial Detallado</CardTitle>
-            <CardDescription>Registro completo de tus actividades aprobadas</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Historial Detallado</CardTitle>
+                <CardDescription>Registro completo de tus actividades aprobadas</CardDescription>
+              </div>
+              {displayedHours.length !== hours.length && (
+                <Badge variant="secondary" className="font-mono">
+                  {displayedHours.length} de {hours.length}
+                </Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            {hours.length === 0 ? (
+            {displayedHours.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="rounded-full bg-muted p-4 mb-4">
                   <Clock className="h-8 w-8 text-muted-foreground/50" />
@@ -233,14 +422,14 @@ export default function MyHours() {
                 <p className="text-muted-foreground">Participa en eventos o solicita recursos para comenzar.</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {hours.map((hour, i) => {
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {displayedHours.map((hour, i) => {
                   const Icon = getSourceIcon(hour.source_type);
                   return (
                     <div
                       key={hour.id}
-                      className="flex items-center gap-4 p-4 rounded-2xl bg-muted/30 hover:bg-muted/50 transition-colors border border-transparent hover:border-border group"
-                      style={{ animationDelay: `${i * 50}ms` }}
+                      className="flex items-center gap-4 p-4 rounded-2xl bg-muted/30 hover:bg-muted/50 transition-all border border-transparent hover:border-border group"
+                      style={{ animationDelay: `${i * 30}ms` }}
                     >
                       <div className={cn(
                         "rounded-xl p-3 shrink-0 transition-transform group-hover:scale-110",
@@ -256,8 +445,8 @@ export default function MyHours() {
                           {format(new Date(hour.awarded_at), "EEEE d 'de' MMMM, yyyy", { locale: es })}
                         </p>
                       </div>
-                      <div className="text-right">
-                        <Badge className="text-sm px-3 py-1 bg-green-100 text-green-700 hover:bg-green-100 border-0">
+                      <div className="text-right shrink-0">
+                        <Badge variant="outline" className="text-sm px-3 py-1 bg-green-50 text-green-700 border-green-200">
                           +{Number(hour.hours).toFixed(1)}h
                         </Badge>
                       </div>

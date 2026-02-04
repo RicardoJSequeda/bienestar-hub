@@ -39,8 +39,8 @@ export function useProactiveAlerts() {
         id,
         due_date,
         user_id,
-        profiles:user_id(full_name),
-        resources:resource_id(name)
+        profiles!loans_user_id_fkey(full_name),
+        resources!loans_resource_id_fkey(name)
       `)
       .eq("status", "active")
       .lt("due_date", new Date().toISOString());
@@ -79,7 +79,7 @@ export function useProactiveAlerts() {
 
     const { data: loans } = await supabase
       .from("loans")
-      .select("resource_id, resources:resource_id(name)")
+      .select("resource_id, resources!loans_resource_id_fkey(name)")
       .gte("requested_at", thirtyDaysAgo.toISOString());
 
     if (loans) {
@@ -127,10 +127,9 @@ export function useProactiveAlerts() {
     const { data: blockedStudents } = await supabase
       .from("student_behavioral_status")
       .select(`
-        id,
         user_id,
         blocked_reason,
-        profiles:user_id(full_name)
+        profiles!student_behavioral_status_user_id_fkey(full_name)
       `)
       .eq("is_blocked", true);
 

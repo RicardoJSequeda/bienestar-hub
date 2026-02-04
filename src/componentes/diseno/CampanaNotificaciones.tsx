@@ -3,7 +3,7 @@ import { useNotifications } from "@/ganchos/usar-notificaciones";
 import { Button } from "@/componentes/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/componentes/ui/popover";
 import { ScrollArea } from "@/componentes/ui/scroll-area";
-import { Bell, Check, CheckCheck, Loader2 } from "lucide-react";
+import { Bell, Check, CheckCheck, Loader2, ExternalLink } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/utilidades/utilidades";
