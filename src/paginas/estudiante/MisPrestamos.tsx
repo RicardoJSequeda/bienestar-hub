@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/servicios/cliente";
+import { NotificationService } from "@/servicios/notificaciones";
 import { useAuth } from "@/contextos/ContextoAutenticacion";
 import { DashboardLayout } from "@/componentes/diseno/DisenoTablero";
 import { Card, CardContent } from "@/componentes/ui/card";
@@ -65,19 +66,19 @@ export default function MyLoans() {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>("active");
-  
+
   // Diálogos
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [extensionDialogOpen, setExtensionDialogOpen] = useState(false);
   const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
-  
+
   // Estados de formularios
   const [extensionReason, setExtensionReason] = useState("");
   const [rating, setRating] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  
+
   // Filtros avanzados
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -114,6 +115,18 @@ export default function MyLoans() {
       console.error("Error fetching loans:", error);
     } else {
       setLoans(data as unknown as Loan[]);
+
+      // Schedule local reminders for active loans
+      const activeLoansWithDueDate = (data as unknown as Loan[]).filter(l => l.status === 'active' && l.due_date);
+      activeLoansWithDueDate.forEach(loan => {
+        if (loan.due_date) {
+          NotificationService.scheduleLoanReminder(
+            loan.id,
+            loan.resources.name,
+            new Date(loan.due_date)
+          );
+        }
+      });
     }
     setIsLoading(false);
   };
@@ -202,7 +215,7 @@ export default function MyLoans() {
       rating,
       rating_comment: ratingComment.trim() || null,
     };
-    
+
     const { error } = await supabase
       .from("loans")
       .update(updateData)
@@ -307,10 +320,10 @@ export default function MyLoans() {
           y = 20;
         }
 
-        const resourceName = loan.resources.name.length > 25 
-          ? loan.resources.name.substring(0, 22) + "..." 
+        const resourceName = loan.resources.name.length > 25
+          ? loan.resources.name.substring(0, 22) + "..."
           : loan.resources.name;
-        
+
         doc.text(resourceName, margin, y);
         doc.text(statusConfig[loan.status]?.label || loan.status, margin + colWidths[0], y);
         doc.text(format(new Date(loan.requested_at), "dd/MM/yy"), margin + colWidths[0] + colWidths[1], y);
@@ -361,12 +374,12 @@ export default function MyLoans() {
   // Función de filtrado avanzado
   const applyFilters = (loanList: Loan[]) => {
     let filtered = [...loanList];
-    
+
     // Filtro por estado
     if (filterStatus !== "all") {
       filtered = filtered.filter(l => l.status === filterStatus);
     }
-    
+
     // Filtro por fecha (rango)
     if (filterDateFrom) {
       const fromDate = startOfDay(new Date(filterDateFrom));
@@ -375,7 +388,7 @@ export default function MyLoans() {
         return loanDate && loanDate >= fromDate;
       });
     }
-    
+
     if (filterDateTo) {
       const toDate = endOfDay(new Date(filterDateTo));
       filtered = filtered.filter(l => {
@@ -383,11 +396,11 @@ export default function MyLoans() {
         return loanDate && loanDate <= toDate;
       });
     }
-    
+
     // Ordenamiento
     filtered.sort((a, b) => {
       let comparison = 0;
-      
+
       switch (sortBy) {
         case "date":
           comparison = new Date(a.requested_at).getTime() - new Date(b.requested_at).getTime();
@@ -399,21 +412,21 @@ export default function MyLoans() {
           comparison = a.status.localeCompare(b.status);
           break;
       }
-      
+
       return sortOrder === "asc" ? comparison : -comparison;
     });
-    
+
     return filtered;
   };
 
   const activeLoans = loans.filter((l) => ["pending", "approved", "active", "overdue"].includes(l.status));
   const historyLoans = loans.filter((l) => ["returned", "rejected", "lost", "damaged", "expired"].includes(l.status));
-  
+
   // Préstamos devueltos sin calificar
   const unratedLoans = loans.filter((l) => l.status === "returned" && l.rating === null);
-  
+
   // Aplicar filtros según tab activo
-  const displayedLoans = activeTab === "active" 
+  const displayedLoans = activeTab === "active"
     ? applyFilters(activeLoans)
     : applyFilters(historyLoans);
 
@@ -453,7 +466,7 @@ export default function MyLoans() {
               </div>
             )}
             <div className={cn("absolute inset-0 opacity-20 transition-opacity", config.bgColor)} />
-            
+
             {/* Extension badge */}
             {loan.extension_requested && (
               <div className="absolute top-2 left-2">
@@ -512,7 +525,7 @@ export default function MyLoans() {
                     <span className="italic text-xs">{loan.admin_notes}</span>
                   </div>
                 )}
-                
+
                 {/* Rating display for returned loans */}
                 {loan.status === "returned" && loan.rating && (
                   <div className="flex flex-col col-span-2 mt-1">
@@ -603,7 +616,7 @@ export default function MyLoans() {
               Gestiona y revisa el estado de tus solicitudes
             </p>
           </div>
-          
+
           {/* Export buttons */}
           {loans.length > 0 && (
             <div className="flex gap-2">

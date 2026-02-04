@@ -10,6 +10,7 @@ import Dashboard from "./paginas/Tablero";
 import Profile from "./paginas/Perfil";
 import NotFound from "./paginas/NoEncontrado";
 import { OfflineStatus } from "@/componentes/pwa/EstadoSinConexion";
+import { NativeNotificationListener } from "@/componentes/funcional/EscuchaNotificacionesNativas";
 
 // Student pages
 import StudentResources from "./paginas/estudiante/Recursos";
@@ -40,6 +41,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <OfflineStatus />
+        <NativeNotificationListener />
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

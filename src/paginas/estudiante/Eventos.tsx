@@ -15,6 +15,7 @@ import { es } from "date-fns/locale";
 import { HeroSkeleton, CardSkeleton } from "@/componentes/ui/skeleton-loaders";
 import { EmptyEvents } from "@/componentes/ui/empty-states";
 import { useRealtimeSubscription } from "@/ganchos/usar-suscripcion-tiempo-real";
+import { NotificationService } from "@/servicios/notificaciones";
 
 interface Event {
   id: string;
@@ -61,6 +62,18 @@ export default function StudentEvents() {
       fetchData();
     }
   }, [profile?.user_id]);
+
+  useEffect(() => {
+    // Schedule local reminders for enrolled events
+    const enrolledEvents = events.filter(e => e.is_enrolled);
+    enrolledEvents.forEach(event => {
+      NotificationService.scheduleEventReminder(
+        event.id,
+        event.title,
+        new Date(event.start_date)
+      );
+    });
+  }, [events]);
 
   const fetchData = async () => {
     try {
