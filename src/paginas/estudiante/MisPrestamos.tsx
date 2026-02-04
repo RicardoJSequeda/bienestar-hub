@@ -209,7 +209,28 @@ export default function MyLoans() {
   // ============================================
   const handleSubmitRating = async () => {
     if (!selectedLoan || rating === 0) return;
-    setIsProcessing(true);
+
+    // OPTIMISTIC UPDATE: Update UI immediately
+    const tempLoanId = selectedLoan.id;
+    setLoans(currentLoans =>
+      currentLoans.map(loan =>
+        loan.id === tempLoanId
+          ? { ...loan, rating, rating_comment: ratingComment.trim() || null }
+          : loan
+      )
+    );
+
+    // Close modal immediately
+    setIsProcessing(true); // Keep processing state just in case, but modal is closing
+    setRatingDialogOpen(false);
+    setRating(0);
+    setRatingComment("");
+    setSelectedLoan(null);
+
+    toast({
+      title: "¡Gracias por tu calificación!",
+      description: "Tu opinión nos ayuda a mejorar el servicio",
+    });
 
     const updateData: any = {
       rating,
@@ -219,28 +240,23 @@ export default function MyLoans() {
     const { error } = await supabase
       .from("loans")
       .update(updateData)
-      .eq("id", selectedLoan.id)
+      .eq("id", tempLoanId)
       .eq("status", "returned");
 
     if (error) {
+      // Revert if error (optional, but good practice)
+      console.error("Error rating loan:", error);
+      fetchLoans(); // Re-fetch to restore true state
       toast({
         variant: "destructive",
         title: "Error",
         description: "No se pudo guardar la calificación",
       });
     } else {
-      toast({
-        title: "¡Gracias por tu calificación!",
-        description: "Tu opinión nos ayuda a mejorar el servicio",
-      });
-      fetchLoans();
+      // Success silently confirmed
     }
 
     setIsProcessing(false);
-    setRatingDialogOpen(false);
-    setRating(0);
-    setRatingComment("");
-    setSelectedLoan(null);
   };
 
   // ============================================

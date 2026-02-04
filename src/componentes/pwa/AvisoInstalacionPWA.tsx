@@ -85,8 +85,8 @@ export function PWAInstallPrompt() {
                 </div>
                 <CardContent className="p-4 pt-5">
                     <div className="flex items-start gap-4">
-                        <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                            <Download className="h-6 w-6 text-primary" />
+                        <div className="h-16 w-16 bg-white rounded-xl border flex items-center justify-center shrink-0 p-2 overflow-hidden">
+                            <img src="/logo.png" alt="App Logo" className="w-full h-full object-contain" />
                         </div>
                         <div className="flex-1">
                             <h3 className="font-bold text-base mb-1">Instalar App Institucional</h3>

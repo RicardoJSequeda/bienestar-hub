@@ -16,7 +16,7 @@ import {
   Download,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/componentes/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/componentes/ui/sheet";
 import { Button } from "@/componentes/ui/button";
 import { Avatar, AvatarFallback } from "@/componentes/ui/avatar";
 import { Badge } from "@/componentes/ui/badge";
@@ -58,8 +58,18 @@ export function MobileBottomNav() {
   const navigate = useNavigate();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
+    // Check if installed
+    const checkStandalone = () => {
+      const isStandaloneMode = window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as any).standalone ||
+        document.referrer.includes("android-app://");
+      setIsStandalone(isStandaloneMode);
+    };
+    checkStandalone();
+
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -69,12 +79,14 @@ export function MobileBottomNav() {
   }, []);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    console.log(`User response to the install prompt: ${outcome}`);
-    setDeferredPrompt(null);
-    setIsMoreOpen(false);
+    if (deferredPrompt) {
+      // Native prompt available (Android/Desktop usually)
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`User response: ${outcome}`);
+      setDeferredPrompt(null);
+      setIsMoreOpen(false);
+    }
   };
 
   const navItems = isAdmin ? adminNavItems : studentNavItems;
@@ -171,18 +183,19 @@ export function MobileBottomNav() {
             </Badge>
           </div>
 
-          {/* PWA Install Button */}
-          {deferredPrompt && (
+          {/* PWA Install Button - Only show if native prompt is captured (Android/Chrome) */}
+          {!isStandalone && deferredPrompt && (
             <div className="mb-4">
               <Button
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg font-bold"
                 onClick={handleInstallClick}
               >
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="mr-2 h-5 w-5" />
                 Instalar Aplicación
               </Button>
             </div>
           )}
+
 
           {/* More menu items */}
           <div className="space-y-1">
